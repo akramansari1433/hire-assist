@@ -21,7 +21,7 @@ export async function POST(req: NextRequest) {
     .returning({ id: resumes.id });
 
   // 2. chunk & embed
-  const pieces = chunk(fullText);
+  const pieces = await chunk(fullText);
   const vectors = await Promise.all(pieces.map(embed));
 
   // 3. store chunks in Postgres
