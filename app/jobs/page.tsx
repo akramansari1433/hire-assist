@@ -17,7 +17,7 @@ import {
 } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { PlusIcon, BriefcaseIcon, CalendarIcon, UsersIcon, SearchIcon, ArrowRightIcon } from "lucide-react";
+import { PlusIcon, BriefcaseIcon, CalendarIcon, SearchIcon, ArrowRightIcon } from "lucide-react";
 
 interface Job {
   id: number;
@@ -106,14 +106,14 @@ export default function JobsPage() {
                 Create Job
               </Button>
             </DialogTrigger>
-            <DialogContent className="sm:max-w-2xl">
+            <DialogContent className="sm:max-w-2xl max-h-[80vh] overflow-hidden">
               <DialogHeader>
                 <DialogTitle>Create New Job Posting</DialogTitle>
                 <DialogDescription>
                   Add a new job with detailed description. Our AI will automatically process and embed the content.
                 </DialogDescription>
               </DialogHeader>
-              <div className="grid gap-4 py-4">
+              <div className="grid gap-4 py-4 overflow-y-auto max-h-[60vh]">
                 <div className="grid gap-2">
                   <Label htmlFor="title">Job Title</Label>
                   <Input
@@ -130,9 +130,12 @@ export default function JobsPage() {
                     placeholder="Enter detailed job description, requirements, and qualifications..."
                     value={newJob.jdText}
                     onChange={(e) => setNewJob({ ...newJob, jdText: e.target.value })}
-                    rows={8}
+                    rows={6}
+                    className="max-h-40 resize-none"
                   />
                 </div>
+              </div>
+              <div className="border-t pt-4">
                 <Button
                   onClick={handleCreateJob}
                   disabled={creating || !newJob.title || !newJob.jdText}
@@ -207,21 +210,13 @@ export default function JobsPage() {
                     </CardHeader>
                     <CardContent>
                       <div className="flex items-center justify-between">
-                        <div className="flex gap-2">
-                          <Link href={`/jobs/${job.id}?tab=resumes`}>
-                            <Button variant="outline" size="sm">
-                              <UsersIcon className="h-4 w-4 mr-2" />
-                              View Resumes
-                            </Button>
-                          </Link>
-                          <Link href={`/jobs/${job.id}`}>
-                            <Button variant="outline" size="sm">
-                              <BriefcaseIcon className="h-4 w-4 mr-2" />
-                              View Details
-                            </Button>
-                          </Link>
-                        </div>
-                        <Link href={`/jobs/${job.id}?tab=matching`}>
+                        <Link href={`/jobs/${job.id}`}>
+                          <Button variant="outline" size="sm">
+                            <BriefcaseIcon className="h-4 w-4 mr-2" />
+                            View Details
+                          </Button>
+                        </Link>
+                        <Link href={`/jobs/${job.id}/matching`}>
                           <Button size="sm">
                             Start Matching
                             <ArrowRightIcon className="h-4 w-4 ml-2" />

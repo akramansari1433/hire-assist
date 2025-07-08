@@ -333,12 +333,12 @@ export default function JobDetailPage({ params }: { params: Promise<{ jobId: str
                         Upload Resume
                       </Button>
                     </DialogTrigger>
-                    <DialogContent>
+                    <DialogContent className="sm:max-w-2xl max-h-[80vh] overflow-hidden">
                       <DialogHeader>
                         <DialogTitle>Upload Resume</DialogTitle>
                         <DialogDescription>Add a new candidate resume for this job.</DialogDescription>
                       </DialogHeader>
-                      <div className="grid gap-4 py-4">
+                      <div className="grid gap-4 py-4 overflow-y-auto max-h-[60vh]">
                         <div className="grid gap-2">
                           <Label htmlFor="candidateName">Candidate Name</Label>
                           <Input
@@ -355,12 +355,16 @@ export default function JobDetailPage({ params }: { params: Promise<{ jobId: str
                             placeholder="Paste the full resume text here..."
                             value={newResume.fullText}
                             onChange={(e) => setNewResume({ ...newResume, fullText: e.target.value })}
-                            rows={8}
+                            rows={6}
+                            className="max-h-40 resize-none"
                           />
                         </div>
+                      </div>
+                      <div className="border-t pt-4">
                         <Button
                           onClick={handleUploadResume}
                           disabled={uploading || !newResume.candidateName || !newResume.fullText}
+                          className="w-full"
                         >
                           {uploading ? "Uploading..." : "Upload Resume"}
                         </Button>
