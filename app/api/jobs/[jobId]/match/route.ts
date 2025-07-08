@@ -3,16 +3,17 @@ import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { jobs, comparisons, resumes } from "@/lib/db";
 import { index } from "@/lib/pinecone";
-import OpenAI from "openai";
+import { generateText } from "ai";
+import { createGroq } from "@ai-sdk/groq";
 import { eq } from "drizzle-orm";
 
-const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
+const groq = createGroq({
+  apiKey: process.env.GROQ_API_KEY,
+});
 
 export async function POST(req: NextRequest, { params }: { params: Promise<{ jobId: string }> }) {
   const { jobId } = await params;
   const { userId, topK = 10 } = await req.json();
-
-  console.log(`🎯 Match API called for job ${jobId}, userId: ${userId}, topK: ${topK}`);
 
   if (!userId) {
     console.error("❌ Missing userId");
@@ -21,7 +22,6 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ job
 
   try {
     // fetch JD embedding
-    console.log("📋 Fetching job details and embedding...");
     const [job] = await db
       .select({ emb: jobs.jdEmbedding, text: jobs.jdText })
       .from(jobs)
@@ -32,23 +32,17 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ job
       return NextResponse.json({ error: "Job not found or no embedding" }, { status: 404 });
     }
 
-    console.log("✅ Job found, embedding length:", job.emb.length);
-
     // Check if we have resumes for this job
     const resumeCount = await db
       .select({ count: resumes.id })
       .from(resumes)
       .where(eq(resumes.jobId, Number(jobId)));
 
-    console.log("📄 Resumes found for this job:", resumeCount.length);
-
     if (resumeCount.length === 0) {
-      console.log("⚠️ No resumes found for this job");
       return NextResponse.json({ error: "No resumes found for this job" }, { status: 404 });
     }
 
     // vector query
-    console.log("🔍 Querying Pinecone for similar resumes...");
     const resp = await index.namespace("resumes").query({
       vector: job.emb,
       topK,
@@ -56,18 +50,10 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ job
       includeMetadata: true,
     });
 
-    console.log("📊 Pinecone response:", {
-      matchCount: resp.matches?.length || 0,
-      matches: resp.matches?.map((m) => ({ id: m.id, score: m.score })),
-    });
-
     // aggregate best per resume
     const best: Record<number, number> = {};
     resp.matches?.forEach((m) => {
-      console.log("🔍 Processing match:", { id: m.id, score: m.score, metadata: m.metadata });
-
       if (!m.metadata) {
-        console.warn("⚠️ Match has no metadata:", m.id);
         return;
       }
 
@@ -75,7 +61,6 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ job
       const metadata = m.metadata as any;
 
       if (!metadata.resumeId) {
-        console.warn("⚠️ Match metadata missing resumeId:", metadata);
         return;
       }
 
@@ -83,28 +68,48 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ job
       best[rid] = Math.max(best[rid] ?? 0, m.score!);
     });
 
-    console.log("🏆 Best matches per resume:", best);
-
     if (Object.keys(best).length === 0) {
-      console.log("⚠️ No matches found in Pinecone");
       return NextResponse.json({ error: "No matches found" }, { status: 404 });
     }
 
-    // enrich with LLM
-    console.log("🤖 Starting LLM analysis...");
+    // Check for existing comparisons to avoid re-processing
+    const existingComparisons = await db
+      .select({
+        resumeId: comparisons.resumeId,
+        similarity: comparisons.similarity,
+        matchingSkills: comparisons.matchingSkills,
+        missingSkills: comparisons.missingSkills,
+        summary: comparisons.summary,
+      })
+      .from(comparisons)
+      .where(eq(comparisons.jobId, Number(jobId)));
+
+    // Create a map of existing comparisons by resumeId
+    const existingMap = new Map(existingComparisons.map((comp) => [comp.resumeId, comp]));
+
+    // enrich with LLM (only for new resumes)
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const rows: any[] = [];
 
     for (const [rid, sim] of Object.entries(best)) {
-      console.log(`📝 Processing resume ${rid} with similarity ${sim}`);
+      const resumeId = Number(rid);
 
-      const full = await db
-        .select({ text: resumes.fullText })
-        .from(resumes)
-        .where(eq(resumes.id, Number(rid)));
+      // Check if we already have a comparison for this resume
+      if (existingMap.has(resumeId)) {
+        const existing = existingMap.get(resumeId)!;
+        rows.push({
+          resumeId,
+          similarity: existing.similarity,
+          matching_skills: existing.matchingSkills || [],
+          missing_skills: existing.missingSkills || [],
+          summary: existing.summary || "Previously analyzed candidate",
+        });
+        continue;
+      }
+      const full = await db.select({ text: resumes.fullText }).from(resumes).where(eq(resumes.id, resumeId));
 
       if (!full[0]) {
-        console.error(`❌ Resume ${rid} not found in database`);
+        console.error(`❌ Resume ${resumeId} not found in database`);
         continue;
       }
 
@@ -123,34 +128,39 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ job
       `;
 
       try {
-        console.log(`🤖 Calling GPT for resume ${rid}...`);
-        const chat = await openai.chat.completions.create({
-          model: "gpt-4o-mini",
-          messages: [{ role: "user", content: prompt }],
+        const { text } = await generateText({
+          model: groq("llama-3.3-70b-versatile"),
+          prompt: prompt,
         });
 
-        const content = chat.choices[0].message.content ?? "{}";
-        console.log(`🤖 GPT response for resume ${rid}:`, content.substring(0, 100) + "...");
+        // Clean the response to extract JSON content
+        let cleanText = text.trim();
+        // Remove markdown code block formatting if present
+        if (cleanText.startsWith("```json")) {
+          cleanText = cleanText.replace(/^```json\s*/, "").replace(/\s*```$/, "");
+        } else if (cleanText.startsWith("```")) {
+          cleanText = cleanText.replace(/^```\s*/, "").replace(/\s*```$/, "");
+        }
 
-        const { matching_skills, missing_skills, summary } = JSON.parse(content);
+        const { matching_skills, missing_skills, summary } = JSON.parse(cleanText);
 
         // persist
         await db.insert(comparisons).values({
           userId,
           jobId: Number(jobId),
-          resumeId: Number(rid),
+          resumeId,
           similarity: sim,
           matchingSkills: matching_skills,
           missingSkills: missing_skills,
           summary,
         });
 
-        rows.push({ resumeId: Number(rid), similarity: sim, matching_skills, missing_skills, summary });
+        rows.push({ resumeId, similarity: sim, matching_skills, missing_skills, summary });
       } catch (gptError) {
-        console.error(`❌ GPT error for resume ${rid}:`, gptError);
+        console.error(`❌ GPT error for resume ${resumeId}:`, gptError);
         // Add a fallback result
         rows.push({
-          resumeId: Number(rid),
+          resumeId,
           similarity: sim,
           matching_skills: [],
           missing_skills: [],
@@ -158,8 +168,6 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ job
         });
       }
     }
-
-    console.log("✅ Final results:", rows.length, "processed");
 
     // return sorted
     const sortedResults = rows.sort((a, b) => b.similarity - a.similarity);

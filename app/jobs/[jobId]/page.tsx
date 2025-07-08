@@ -37,6 +37,21 @@ interface MatchResult {
   matching_skills: string[];
   missing_skills: string[];
   summary: string;
+  createdAt?: string;
+}
+
+interface ComparisonFromAPI {
+  resumeId: number;
+  similarity: number;
+  matchingSkills: string[];
+  missingSkills: string[];
+  summary: string;
+  createdAt: string;
+}
+
+interface ResumeWithStatus extends Resume {
+  isMatched: boolean;
+  matchResult?: MatchResult;
 }
 
 export default function JobDetailPage({ params }: { params: Promise<{ jobId: string }> }) {
@@ -44,6 +59,7 @@ export default function JobDetailPage({ params }: { params: Promise<{ jobId: str
 
   const [job, setJob] = useState<Job | null>(null);
   const [resumes, setResumes] = useState<Resume[]>([]);
+  const [resumesWithStatus, setResumesWithStatus] = useState<ResumeWithStatus[]>([]);
   const [loading, setLoading] = useState(true);
   const [uploading, setUploading] = useState(false);
   const [newResume, setNewResume] = useState({ candidateName: "", fullText: "" });
@@ -57,6 +73,13 @@ export default function JobDetailPage({ params }: { params: Promise<{ jobId: str
       fetchResumes();
     }
   }, [jobId]);
+
+  // Fetch existing comparisons and update resume status
+  useEffect(() => {
+    if (resumes.length > 0) {
+      fetchExistingComparisons();
+    }
+  }, [resumes]);
 
   const fetchJobDetails = async () => {
     try {
@@ -83,6 +106,60 @@ export default function JobDetailPage({ params }: { params: Promise<{ jobId: str
     }
   };
 
+  const fetchExistingComparisons = async () => {
+    try {
+      const response = await fetch(`/api/jobs/${jobId}/comparisons`);
+      if (response.ok) {
+        const comparisons = await response.json();
+
+        // Create a map of resumeId to comparison
+        const comparisonMap = new Map<number, ComparisonFromAPI>(
+          comparisons.map((comp: ComparisonFromAPI) => [comp.resumeId, comp])
+        );
+
+        // Update resumes with match status
+        const resumesWithMatchStatus: ResumeWithStatus[] = resumes.map((resume) => {
+          const matchResult = comparisonMap.get(resume.id);
+          return {
+            ...resume,
+            isMatched: !!matchResult,
+            matchResult: matchResult
+              ? {
+                  resumeId: matchResult.resumeId,
+                  similarity: matchResult.similarity,
+                  summary: matchResult.summary,
+                  matching_skills: matchResult.matchingSkills || [],
+                  missing_skills: matchResult.missingSkills || [],
+                  createdAt: matchResult.createdAt,
+                }
+              : undefined,
+          };
+        });
+
+        setResumesWithStatus(resumesWithMatchStatus);
+
+        // Set existing match results for display
+        if (comparisons.length > 0) {
+          const enrichedResults = comparisons.map((comp: ComparisonFromAPI) => {
+            const resume = resumes.find((r) => r.id === comp.resumeId);
+            return {
+              resumeId: comp.resumeId,
+              similarity: comp.similarity,
+              summary: comp.summary,
+              matching_skills: comp.matchingSkills || [],
+              missing_skills: comp.missingSkills || [],
+              candidateName: resume?.candidate || "Unknown Candidate",
+              createdAt: comp.createdAt,
+            };
+          });
+          setMatchResults(enrichedResults);
+        }
+      }
+    } catch (error) {
+      console.error("Error fetching existing comparisons:", error);
+    }
+  };
+
   const handleUploadResume = async () => {
     if (!newResume.candidateName || !newResume.fullText) return;
 
@@ -106,11 +183,18 @@ export default function JobDetailPage({ params }: { params: Promise<{ jobId: str
     }
   };
 
-  const runMatching = async () => {
+  const runMatching = async (forceRerun = false) => {
     if (!job) return;
 
+    const unmatchedResumes = resumesWithStatus.filter((r) => !r.isMatched);
+    const hasUnmatchedResumes = unmatchedResumes.length > 0;
+
+    if (!forceRerun && !hasUnmatchedResumes) {
+      // All resumes are already matched
+      return;
+    }
+
     setMatching(true);
-    setMatchResults([]);
 
     try {
       const response = await fetch(`/api/jobs/${jobId}/match`, {
@@ -140,12 +224,30 @@ export default function JobDetailPage({ params }: { params: Promise<{ jobId: str
       });
 
       setMatchResults(enrichedResults);
+
+      // Refresh the comparisons to update the UI
+      await fetchExistingComparisons();
     } catch (error) {
       console.error("Error running matching:", error);
       alert(`Matching error: ${error instanceof Error ? error.message : String(error)}`);
     } finally {
       setMatching(false);
     }
+  };
+
+  const getMatchingButtonText = () => {
+    const unmatchedCount = resumesWithStatus.filter((r) => !r.isMatched).length;
+    const totalCount = resumesWithStatus.length;
+
+    if (totalCount === 0) return "Run Matching";
+    if (unmatchedCount === 0) return "All Matched";
+    if (unmatchedCount === totalCount) return "Run Matching";
+    return `Match ${unmatchedCount} New`;
+  };
+
+  const shouldDisableMatching = () => {
+    const unmatchedCount = resumesWithStatus.filter((r) => !r.isMatched).length;
+    return matching || unmatchedCount === 0;
   };
 
   const formatDate = (dateString: string) => {
@@ -275,7 +377,10 @@ export default function JobDetailPage({ params }: { params: Promise<{ jobId: str
                   </div>
                 ) : (
                   <div className="space-y-3">
-                    {resumes.map((resume) => (
+                    {(resumesWithStatus.length > 0
+                      ? resumesWithStatus
+                      : resumes.map((r) => ({ ...r, isMatched: false, matchResult: undefined }))
+                    ).map((resume) => (
                       <div
                         key={resume.id}
                         className="flex items-center justify-between p-3 bg-slate-50 dark:bg-slate-800 rounded-lg"
@@ -288,6 +393,20 @@ export default function JobDetailPage({ params }: { params: Promise<{ jobId: str
                               Uploaded {formatDate(resume.when)}
                             </p>
                           </div>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          {resume.isMatched ? (
+                            <Badge className="bg-green-100 text-green-800 border-green-200">✅ Matched</Badge>
+                          ) : (
+                            <Badge variant="outline" className="border-orange-200 text-orange-700">
+                              ⏳ Pending
+                            </Badge>
+                          )}
+                          {resume.isMatched && resume.matchResult && (
+                            <Badge className={getScoreBadgeColor(resume.matchResult.similarity)}>
+                              {(resume.matchResult.similarity * 100).toFixed(1)}%
+                            </Badge>
+                          )}
                         </div>
                       </div>
                     ))}
@@ -302,9 +421,16 @@ export default function JobDetailPage({ params }: { params: Promise<{ jobId: str
                 <CardHeader>
                   <div className="flex items-center justify-between">
                     <CardTitle>AI Matching</CardTitle>
-                    <Button onClick={runMatching} disabled={matching} size="sm">
-                      {matching ? "Analyzing..." : "Run Matching"}
-                    </Button>
+                    <div className="flex gap-2">
+                      <Button onClick={() => runMatching()} disabled={shouldDisableMatching()} size="sm">
+                        {matching ? "Analyzing..." : getMatchingButtonText()}
+                      </Button>
+                      {matchResults.length > 0 && (
+                        <Button onClick={() => runMatching(true)} disabled={matching} variant="outline" size="sm">
+                          Re-analyze All
+                        </Button>
+                      )}
+                    </div>
                   </div>
                   <CardDescription>Analyze how well candidates match this job using AI</CardDescription>
                 </CardHeader>
@@ -321,7 +447,7 @@ export default function JobDetailPage({ params }: { params: Promise<{ jobId: str
                       </div>
                       {matchResults.map((result) => (
                         <div key={result.resumeId} className="p-4 bg-slate-50 dark:bg-slate-800 rounded-lg">
-                          <div className="flex items-center justify-between mb-2">
+                          <div className="flex items-center justify-between mb-3">
                             <h4 className="font-medium">
                               {resumes.find((r) => r.id === result.resumeId)?.candidate || "Unknown"}
                             </h4>
@@ -329,9 +455,60 @@ export default function JobDetailPage({ params }: { params: Promise<{ jobId: str
                               {(result.similarity * 100).toFixed(1)}% Match
                             </Badge>
                           </div>
-                          <p className="text-sm text-slate-600 dark:text-slate-400">
+
+                          <p className="text-sm text-slate-600 dark:text-slate-400 mb-3">
                             {result.summary || "Analysis completed"}
                           </p>
+
+                          {/* Matching Skills */}
+                          {result.matching_skills && result.matching_skills.length > 0 && (
+                            <div className="mb-3">
+                              <h5 className="text-xs font-medium text-green-700 dark:text-green-400 mb-1">
+                                ✅ Matching Skills ({result.matching_skills.length})
+                              </h5>
+                              <div className="flex flex-wrap gap-1">
+                                {result.matching_skills.slice(0, 6).map((skill, index) => (
+                                  <Badge
+                                    key={index}
+                                    variant="secondary"
+                                    className="bg-green-100 text-green-800 text-xs"
+                                  >
+                                    {skill}
+                                  </Badge>
+                                ))}
+                                {result.matching_skills.length > 6 && (
+                                  <Badge variant="secondary" className="bg-green-100 text-green-800 text-xs">
+                                    +{result.matching_skills.length - 6} more
+                                  </Badge>
+                                )}
+                              </div>
+                            </div>
+                          )}
+
+                          {/* Missing Skills */}
+                          {result.missing_skills && result.missing_skills.length > 0 && (
+                            <div>
+                              <h5 className="text-xs font-medium text-orange-700 dark:text-orange-400 mb-1">
+                                ⚠️ Missing Skills ({result.missing_skills.length})
+                              </h5>
+                              <div className="flex flex-wrap gap-1">
+                                {result.missing_skills.slice(0, 6).map((skill, index) => (
+                                  <Badge
+                                    key={index}
+                                    variant="secondary"
+                                    className="bg-orange-100 text-orange-800 text-xs"
+                                  >
+                                    {skill}
+                                  </Badge>
+                                ))}
+                                {result.missing_skills.length > 6 && (
+                                  <Badge variant="secondary" className="bg-orange-100 text-orange-800 text-xs">
+                                    +{result.missing_skills.length - 6} more
+                                  </Badge>
+                                )}
+                              </div>
+                            </div>
+                          )}
                         </div>
                       ))}
                     </div>
