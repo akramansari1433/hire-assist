@@ -53,6 +53,7 @@ export default function JobDetailPage() {
   const [uploading, setUploading] = useState(false);
   const [newResume, setNewResume] = useState({ candidateName: "", fullText: "" });
   const [uploadSuccess, setUploadSuccess] = useState(false);
+  const [isUploadDialogOpen, setIsUploadDialogOpen] = useState(false);
 
   useEffect(() => {
     if (jobId) {
@@ -103,6 +104,7 @@ export default function JobDetailPage() {
 
       if (response.ok) {
         setNewResume({ candidateName: "", fullText: "" });
+        setIsUploadDialogOpen(false); // Close the dialog after successful upload
         setUploadSuccess(true);
         setTimeout(() => setUploadSuccess(false), 3000);
         fetchResumes();
@@ -179,7 +181,7 @@ export default function JobDetailPage() {
           </div>
 
           <div className="flex items-center gap-2">
-            <Dialog>
+            <Dialog open={isUploadDialogOpen} onOpenChange={setIsUploadDialogOpen}>
               <DialogTrigger asChild>
                 <Button className="bg-gradient-to-r from-green-600 to-blue-600 hover:from-green-700 hover:to-blue-700">
                   <UploadIcon className="h-4 w-4 mr-2" />
@@ -270,7 +272,7 @@ export default function JobDetailPage() {
                   {resumes.length} resumes uploaded for this position
                 </p>
               </div>
-              <Dialog>
+              <Dialog open={isUploadDialogOpen} onOpenChange={setIsUploadDialogOpen}>
                 <DialogTrigger asChild>
                   <Button variant="outline">
                     <PlusIcon className="h-4 w-4 mr-2" />
@@ -324,7 +326,7 @@ export default function JobDetailPage() {
                     <p className="text-slate-600 dark:text-slate-400 mb-4">
                       Upload candidate resumes to start the matching process
                     </p>
-                    <Dialog>
+                    <Dialog open={isUploadDialogOpen} onOpenChange={setIsUploadDialogOpen}>
                       <DialogTrigger asChild>
                         <Button>
                           <UploadIcon className="h-4 w-4 mr-2" />

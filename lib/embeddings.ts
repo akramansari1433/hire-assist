@@ -1,10 +1,10 @@
-import OpenAI from "openai";
-const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
+import { pc } from "./pinecone";
 
 export async function embed(text: string): Promise<number[]> {
-  const { data } = await openai.embeddings.create({
-    model: "text-embedding-3-small",
-    input: text,
-  });
-  return data[0].embedding;
+  const model = "llama-text-embed-v2";
+
+  const embeddings = await pc.inference.embed(model, [text], { inputType: "passage", truncate: "END" });
+
+  // @ts-expect-error - TODO: fix this
+  return embeddings.data[0].values;
 }

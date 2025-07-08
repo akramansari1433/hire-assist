@@ -35,7 +35,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ job
     .returning({ id: resumes.id });
 
   // 2️⃣ chunk + embed
-  const pieces = chunk(fullText);
+  const pieces = await chunk(fullText);
   const vectors = await Promise.all(pieces.map(embed));
 
   // 3️⃣ store chunks

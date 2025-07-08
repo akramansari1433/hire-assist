@@ -39,6 +39,7 @@ export default function ResumesPage() {
   const [newResume, setNewResume] = useState({ candidateName: "", fullText: "" });
   const [searchTerm, setSearchTerm] = useState("");
   const [uploadSuccess, setUploadSuccess] = useState(false);
+  const [isUploadDialogOpen, setIsUploadDialogOpen] = useState(false);
 
   useEffect(() => {
     fetchJobs();
@@ -71,6 +72,8 @@ export default function ResumesPage() {
 
       if (response.ok) {
         setNewResume({ candidateName: "", fullText: "" });
+        setSelectedJob(null);
+        setIsUploadDialogOpen(false); // Close the dialog after successful upload
         setUploadSuccess(true);
         setTimeout(() => setUploadSuccess(false), 3000);
       }
@@ -103,7 +106,7 @@ export default function ResumesPage() {
             </p>
           </div>
 
-          <Dialog>
+          <Dialog open={isUploadDialogOpen} onOpenChange={setIsUploadDialogOpen}>
             <DialogTrigger asChild>
               <Button className="bg-gradient-to-r from-green-600 to-blue-600 hover:from-green-700 hover:to-blue-700">
                 <UploadIcon className="h-4 w-4 mr-2" />

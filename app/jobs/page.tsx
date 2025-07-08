@@ -32,6 +32,7 @@ export default function JobsPage() {
   const [creating, setCreating] = useState(false);
   const [newJob, setNewJob] = useState({ title: "", jdText: "" });
   const [searchTerm, setSearchTerm] = useState("");
+  const [isDialogOpen, setIsDialogOpen] = useState(false);
 
   useEffect(() => {
     fetchJobs();
@@ -62,6 +63,7 @@ export default function JobsPage() {
 
       if (response.ok) {
         setNewJob({ title: "", jdText: "" });
+        setIsDialogOpen(false); // Close the dialog after successful creation
         fetchJobs();
       }
     } catch (error) {
@@ -97,7 +99,7 @@ export default function JobsPage() {
             </p>
           </div>
 
-          <Dialog>
+          <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
             <DialogTrigger asChild>
               <Button className="bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700">
                 <PlusIcon className="h-4 w-4 mr-2" />

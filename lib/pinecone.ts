@@ -1,8 +1,7 @@
 import { Pinecone, type PineconeRecord } from "@pinecone-database/pinecone";
 
 export const pc = new Pinecone({
-  apiKey: process.env.PINECONE_API_KEY!, // env handles host/region
-  // controllerHostUrl: process.env.PINECONE_CONTROLLER_HOST, // optional override
+  apiKey: process.env.PINECONE_API_KEY!,
 });
 
 export const index = pc.index(process.env.PINECONE_INDEX!);
