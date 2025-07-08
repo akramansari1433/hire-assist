@@ -1,4 +1,4 @@
-import { pgTable, serial, text, integer, real, uuid, timestamp, doublePrecision } from "drizzle-orm/pg-core";
+import { pgTable, serial, text, integer, real, timestamp, doublePrecision } from "drizzle-orm/pg-core";
 import { relations } from "drizzle-orm";
 
 export const jobs = pgTable("jobs", {
@@ -28,7 +28,7 @@ export const resumeChunks = pgTable("resume_chunks", {
 
 export const comparisons = pgTable("comparisons", {
   id: serial("id").primaryKey(),
-  userId: uuid("user_id"),
+  userId: text("user_id"),
   jobId: integer("job_id"),
   resumeId: integer("resume_id"),
   similarity: real("similarity"),

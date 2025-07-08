@@ -208,22 +208,22 @@ export default function JobsPage() {
                     <CardContent>
                       <div className="flex items-center justify-between">
                         <div className="flex gap-2">
-                          <Link href={`/jobs/${job.id}/resumes`}>
+                          <Link href={`/jobs/${job.id}?tab=resumes`}>
                             <Button variant="outline" size="sm">
                               <UsersIcon className="h-4 w-4 mr-2" />
                               View Resumes
                             </Button>
                           </Link>
-                          <Link href={`/jobs/${job.id}/match`}>
+                          <Link href={`/jobs/${job.id}`}>
                             <Button variant="outline" size="sm">
-                              <SearchIcon className="h-4 w-4 mr-2" />
-                              Start Matching
+                              <BriefcaseIcon className="h-4 w-4 mr-2" />
+                              View Details
                             </Button>
                           </Link>
                         </div>
-                        <Link href={`/jobs/${job.id}`}>
+                        <Link href={`/jobs/${job.id}?tab=matching`}>
                           <Button size="sm">
-                            View Details
+                            Start Matching
                             <ArrowRightIcon className="h-4 w-4 ml-2" />
                           </Button>
                         </Link>

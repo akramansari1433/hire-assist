@@ -13,18 +13,56 @@ export async function GET() {
 
 export async function POST(req: NextRequest) {
   const { title, jdText } = await req.json();
+
+  console.log(`📋 Creating new job: "${title}"`);
+
   if (!title || !jdText) {
+    console.error("❌ Missing required fields:", { title: !!title, jdText: !!jdText });
     return NextResponse.json({ error: "title and jdText required" }, { status: 400 });
   }
 
-  // embed JD
-  const vector = await embed(jdText);
+  try {
+    // embed JD
+    console.log("🔮 Creating embedding for job description...");
+    const vector = await embed(jdText);
+    console.log("✅ Job embedding created, length:", vector.length);
 
-  // insert into Postgres
-  const [job] = await db.insert(jobs).values({ title, jdText, jdEmbedding: vector }).returning({ id: jobs.id });
+    // insert into Postgres
+    console.log("💾 Storing job in database...");
+    const [job] = await db
+      .insert(jobs)
+      .values({
+        title,
+        jdText,
+        jdEmbedding: vector,
+      })
+      .returning({ id: jobs.id });
+    console.log("✅ Job stored with ID:", job.id);
 
-  // upsert into Pinecone
-  await upsertVectors([{ id: `job-${job.id}`, values: vector, metadata: { jobId: job.id } }], "jobs");
+    // upsert into Pinecone
+    console.log("🔍 Storing job embedding in Pinecone...");
+    await upsertVectors(
+      [
+        {
+          id: `job-${job.id}`,
+          values: vector,
+          metadata: { jobId: job.id },
+        },
+      ],
+      "jobs"
+    );
+    console.log("✅ Job embedding stored in Pinecone");
 
-  return NextResponse.json({ id: job.id });
+    console.log("🎉 Job creation successful:", title);
+    return NextResponse.json({ id: job.id });
+  } catch (error) {
+    console.error("💥 Job creation failed:", error);
+    return NextResponse.json(
+      {
+        error: "Job creation failed",
+        details: error instanceof Error ? error.message : String(error),
+      },
+      { status: 500 }
+    );
+  }
 }

@@ -4,7 +4,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { BriefcaseIcon, FileTextIcon, SearchIcon, HistoryIcon, HomeIcon, UsersIcon } from "lucide-react";
+import { BriefcaseIcon, HomeIcon, UsersIcon } from "lucide-react";
 
 export default function Navigation() {
   const pathname = usePathname();
@@ -21,24 +21,6 @@ export default function Navigation() {
       label: "Jobs",
       icon: BriefcaseIcon,
       current: pathname === "/jobs",
-    },
-    {
-      href: "/resumes",
-      label: "Resumes",
-      icon: FileTextIcon,
-      current: pathname === "/resumes",
-    },
-    {
-      href: "/matching",
-      label: "Matching",
-      icon: SearchIcon,
-      current: pathname === "/matching",
-    },
-    {
-      href: "/history",
-      label: "History",
-      icon: HistoryIcon,
-      current: pathname === "/history",
     },
   ];
 
