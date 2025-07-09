@@ -4,7 +4,7 @@ import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } f
 interface BulkDeleteDialogProps {
   isOpen: boolean;
   onOpenChange: (open: boolean) => void;
-  deleteType: "selected" | "all";
+  deleteType?: "selected" | "all";
   totalResumes: number;
   selectedCount: number;
   bulkDeleting: boolean;
@@ -14,7 +14,7 @@ interface BulkDeleteDialogProps {
 export function BulkDeleteDialog({
   isOpen,
   onOpenChange,
-  deleteType,
+  deleteType = "selected",
   totalResumes,
   selectedCount,
   bulkDeleting,

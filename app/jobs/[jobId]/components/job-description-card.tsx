@@ -64,15 +64,6 @@ export function JobDescriptionCard({ job, onUpdate, isUpdating }: JobDescription
                   {job.jdText}
                 </pre>
               </div>
-
-              {/* JD Stats */}
-              <div className="flex items-center gap-4 mt-3 text-xs text-slate-500 dark:text-slate-400">
-                <span>{job.jdText.split(/\s+/).filter((word) => word.length > 0).length} words</span>
-                <span>•</span>
-                <span>{job.jdText.length} characters</span>
-                <span>•</span>
-                <span>Created {new Date(job.createdAt).toLocaleDateString()}</span>
-              </div>
             </div>
           </div>
         </CardContent>

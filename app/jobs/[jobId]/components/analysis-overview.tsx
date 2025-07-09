@@ -9,11 +9,9 @@ interface AnalysisOverviewProps {
   jobId: string;
   allComparisons: ComparisonFromAPI[];
   loading: boolean;
-  matching: boolean;
-  onStartAnalysis?: () => void;
 }
 
-export function AnalysisOverview({ jobId, allComparisons, loading, matching, onStartAnalysis }: AnalysisOverviewProps) {
+export function AnalysisOverview({ jobId, allComparisons, loading }: AnalysisOverviewProps) {
   // Analytics calculations based on ALL comparisons, not just current page
   const avgScore =
     allComparisons.length > 0
@@ -59,7 +57,7 @@ export function AnalysisOverview({ jobId, allComparisons, loading, matching, onS
         <CardDescription>Quick insights and candidate summary</CardDescription>
       </CardHeader>
       <CardContent>
-        {loading || matching ? (
+        {loading ? (
           <div className="text-center py-8">
             <div className="animate-pulse space-y-4">
               <div className="h-4 bg-slate-200 rounded w-3/4 mx-auto"></div>
@@ -160,14 +158,9 @@ export function AnalysisOverview({ jobId, allComparisons, loading, matching, onS
           <div className="text-center py-8">
             <BarChart3Icon className="h-12 w-12 text-slate-400 mx-auto mb-4" />
             <p className="text-slate-600 dark:text-slate-400 mb-4">No analysis data available yet</p>
-            <p className="text-sm text-slate-500 dark:text-slate-500 mb-4">
-              Upload resumes and run matching to see insights
+            <p className="text-sm text-slate-500 dark:text-slate-500">
+              Upload resumes and use the Match button in Candidate Management to analyze candidates
             </p>
-            {onStartAnalysis && (
-              <Button onClick={onStartAnalysis} disabled={matching} className="bg-blue-600 hover:bg-blue-700">
-                {matching ? "Analyzing..." : "Start Analysis"}
-              </Button>
-            )}
           </div>
         )}
       </CardContent>

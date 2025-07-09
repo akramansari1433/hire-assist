@@ -1,160 +1,223 @@
-import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Trash2Icon } from "lucide-react";
+// components/CandidateManagement.tsx
+import { useState } from "react";
+import { Card, CardHeader, CardContent, CardTitle, CardDescription } from "@/components/ui/card";
+import { UploadResumeDialog } from "./dialogs/upload-resume-dialog";
 import { ResumeWithStatus, PaginationState, SortOption } from "../types";
+import { Button } from "@/components/ui/button";
+import { ResumeList } from "./resume-list/resume-list";
+import { BulkDeleteDialog } from "./dialogs/bulk-delete-dialog";
 import { SearchInput } from "./filters/search-input";
 import { StatusFilter } from "./filters/status-filter";
 import { SortSelect } from "./filters/sort-select";
-import { ResumeList } from "./resume-list/resume-list";
-import { UploadResumeDialog } from "./dialogs/upload-resume-dialog";
 
 interface CandidateManagementProps {
-  resumesWithStatus: ResumeWithStatus[];
+  jobId: string;
+  resumes: ResumeWithStatus[];
   pagination: PaginationState;
-  uploading: boolean;
-  bulkDeleting: boolean;
-  hasAnyResumes: boolean;
-  hasMatchedResumes: boolean;
-  allSelected: boolean;
-  hasSelectedResumes: boolean;
-  selectedResumes: ResumeWithStatus[];
-  deleting: number | null;
-  search: string;
-  statusFilter: "all" | "matched" | "unmatched";
-  sortOption: SortOption;
-  matching: boolean;
-
-  // Handlers
-  onSearchChange: (value: string) => void;
-  onStatusFilterChange: (value: "all" | "matched" | "unmatched") => void;
-  onSortOptionChange: (value: SortOption) => void;
-  onToggleSelectAll: () => void;
-  onToggleSelection: (resumeId: number) => void;
-  onPageChange: (page: number) => void;
-  onPageSizeChange: (size: number) => void;
-  onDelete: (resume: ResumeWithStatus) => void;
-  onBulkDelete: (type: "selected" | "all") => void;
-  onUploadResume: (candidateName: string, fullText: string) => Promise<void>;
-  onRunMatching: () => void;
-  getMatchingButtonText: () => string;
-  shouldDisableMatching: () => boolean;
+  onDataChange: (page?: number, limit?: number, sort?: SortOption, search?: string, status?: string) => Promise<void>;
 }
 
-export function CandidateManagement({
-  resumesWithStatus,
-  pagination,
-  uploading,
-  bulkDeleting,
-  hasAnyResumes,
-  hasMatchedResumes,
-  allSelected,
-  hasSelectedResumes,
-  selectedResumes,
-  deleting,
-  search,
-  statusFilter,
-  sortOption,
-  matching,
-  onSearchChange,
-  onStatusFilterChange,
-  onSortOptionChange,
-  onToggleSelectAll,
-  onToggleSelection,
-  onPageChange,
-  onPageSizeChange,
-  onDelete,
-  onBulkDelete,
-  onUploadResume,
-  onRunMatching,
-  getMatchingButtonText,
-  shouldDisableMatching,
-}: CandidateManagementProps) {
-  const handleClearFilters = () => {
-    onSearchChange("");
-    onStatusFilterChange("all");
+export default function CandidateManagement({ jobId, resumes, pagination, onDataChange }: CandidateManagementProps) {
+  // Local state
+  const [filters, setFilters] = useState<{
+    search: string;
+    status: "all" | "matched" | "unmatched";
+    sort: SortOption;
+  }>({ search: "", status: "all", sort: "fit-desc" });
+  const [state, setState] = useState<{
+    loading: boolean;
+    uploading: boolean;
+    bulkDeleting: boolean;
+    matching: boolean;
+    selected: Set<number>;
+  }>({
+    loading: false,
+    uploading: false,
+    bulkDeleting: false,
+    matching: false,
+    selected: new Set(),
+  });
+
+  // Dialog state
+  const [bulkDeleteDialogOpen, setBulkDeleteDialogOpen] = useState(false);
+  const [bulkDeleteType, setBulkDeleteType] = useState<"selected" | "all">("selected");
+
+  // Handlers for filter changes
+  const onSearchChange = (search: string) => {
+    setFilters((f) => ({ ...f, search }));
+    onDataChange(1, pagination.itemsPerPage, filters.sort, search, filters.status);
+  };
+
+  const onStatusChange = (status: "all" | "matched" | "unmatched") => {
+    setFilters((f) => ({ ...f, status }));
+    onDataChange(1, pagination.itemsPerPage, filters.sort, filters.search, status);
+  };
+
+  const onPageChange = (page: number) => {
+    onDataChange(page, pagination.itemsPerPage, filters.sort, filters.search, filters.status);
+  };
+
+  const onPageSizeChange = (size: number) => {
+    onDataChange(1, size, filters.sort, filters.search, filters.status);
+  };
+
+  // Selection handlers
+  const onToggleSelectAll = () => {
+    setState((s) => {
+      const allSelected = resumes.length > 0 && resumes.every((r) => s.selected.has(r.id));
+      const newSelected = allSelected ? new Set<number>() : new Set(resumes.map((r) => r.id));
+      return { ...s, selected: newSelected };
+    });
+  };
+
+  const onToggleSelection = (resumeId: number) => {
+    setState((s) => {
+      const newSelected = new Set(s.selected);
+      if (newSelected.has(resumeId)) {
+        newSelected.delete(resumeId);
+      } else {
+        newSelected.add(resumeId);
+      }
+      return { ...s, selected: newSelected };
+    });
+  };
+
+  // Data modification handlers
+  const onUpload = async (candidateName: string, fullText: string) => {
+    setState((s) => ({ ...s, uploading: true }));
+    try {
+      await fetch(`/api/jobs/${jobId}/resumes`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ candidateName, fullText }),
+      });
+      onDataChange(1, pagination.itemsPerPage, filters.sort, filters.search, filters.status);
+    } catch (error) {
+      console.error("Error uploading resume:", error);
+    } finally {
+      setState((s) => ({ ...s, uploading: false }));
+    }
+  };
+
+  const onRunMatching = async () => {
+    setState((s) => ({ ...s, matching: true }));
+    try {
+      await fetch(`/api/jobs/${jobId}/match`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ userId: "user-123", topK: 10 }),
+      });
+      onDataChange(pagination.currentPage, pagination.itemsPerPage, filters.sort, filters.search, filters.status);
+    } catch (error) {
+      console.error("Error running matching:", error);
+    } finally {
+      setState((s) => ({ ...s, matching: false }));
+    }
+  };
+
+  const confirmBulkDelete = async () => {
+    setState((s) => ({ ...s, bulkDeleting: true }));
+    try {
+      const payload = bulkDeleteType === "all" ? { deleteAll: true } : { resumeIds: Array.from(state.selected) };
+      await fetch(`/api/jobs/${jobId}/resumes/bulk-delete`, {
+        method: "DELETE",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      });
+      setState((s) => ({ ...s, selected: new Set<number>(), bulkDeleting: false }));
+      closeBulkDeleteDialog();
+      onDataChange(1, pagination.itemsPerPage, filters.sort, filters.search, filters.status);
+    } catch (error) {
+      setState((s) => ({ ...s, bulkDeleting: false }));
+      console.error("Error bulk deleting resumes:", error);
+    }
+  };
+
+  const openBulkDeleteDialog = (type: "selected" | "all") => {
+    setBulkDeleteType(type);
+    setBulkDeleteDialogOpen(true);
+  };
+
+  const closeBulkDeleteDialog = () => {
+    setBulkDeleteDialogOpen(false);
   };
 
   return (
     <Card>
       <CardHeader>
-        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+        <div className="flex justify-between items-center">
           <div>
             <CardTitle>Candidate Management ({pagination.totalItems})</CardTitle>
             <CardDescription>Upload, organize, and manage candidate resumes</CardDescription>
           </div>
-          <div className="flex flex-col sm:flex-row gap-2">
-            {resumesWithStatus.length > 0 && (
-              <Button
-                onClick={onRunMatching}
-                disabled={shouldDisableMatching()}
-                size="sm"
-                className="bg-blue-600 hover:bg-blue-700 text-white"
-              >
-                {matching ? "Analyzing..." : getMatchingButtonText()}
-              </Button>
-            )}
-            <UploadResumeDialog uploading={uploading} onUpload={onUploadResume} />
+          <div className="flex gap-2">
+            <Button onClick={onRunMatching} disabled={state.matching || resumes.every((r) => r.isMatched)}>
+              {state.matching ? "Analyzing..." : `Match ${resumes.filter((r) => !r.isMatched).length}`}
+            </Button>
+            <UploadResumeDialog uploading={state.uploading} onUpload={onUpload} />
           </div>
         </div>
-
-        {/* Management Controls */}
-        {hasAnyResumes && (
-          <div className="space-y-4 pt-4 border-t">
-            {/* Search and Filter Controls */}
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-              {/* Search */}
-              <SearchInput value={search} onChange={onSearchChange} />
-
-              {/* Status Filter */}
-              <StatusFilter value={statusFilter} onChange={onStatusFilterChange} />
-
-              {/* Sort Controls */}
-              <SortSelect value={sortOption} onChange={onSortOptionChange} />
-            </div>
-
-            {/* Bulk Actions */}
-            <div className="flex flex-col sm:flex-row items-start sm:items-center gap-2">
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => onBulkDelete("all")}
-                disabled={bulkDeleting}
-                className="text-red-600 hover:text-red-700 hover:bg-red-50"
-              >
-                <Trash2Icon className="h-4 w-4 mr-1" />
-                Delete All
-              </Button>
-              {hasSelectedResumes && (
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => onBulkDelete("selected")}
-                  disabled={bulkDeleting}
-                  className="text-red-600 hover:text-red-700 hover:bg-red-50"
-                >
-                  <Trash2Icon className="h-4 w-4 mr-1" />
-                  Delete Selected ({selectedResumes.length})
-                </Button>
-              )}
-            </div>
-          </div>
-        )}
+        <div className="flex justify-end gap-2 mt-4">
+          {state.selected.size > 0 && state.selected.size < resumes.length && (
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => openBulkDeleteDialog("selected")}
+              disabled={state.bulkDeleting}
+              className="text-red-600 hover:text-red-700 hover:bg-red-50 border-red-200"
+            >
+              Delete Selected ({state.selected.size})
+            </Button>
+          )}
+          <Button
+            variant="destructive"
+            size="sm"
+            onClick={() => openBulkDeleteDialog("all")}
+            disabled={state.bulkDeleting}
+          >
+            Delete All
+          </Button>
+        </div>
       </CardHeader>
-
       <CardContent>
-        <ResumeList
-          resumesWithStatus={resumesWithStatus}
-          pagination={pagination}
-          hasAnyResumes={hasAnyResumes}
-          allSelected={allSelected}
-          hasMatchedResumes={hasMatchedResumes}
-          deleting={deleting}
-          onToggleSelectAll={onToggleSelectAll}
-          onToggleSelection={onToggleSelection}
-          onPageChange={onPageChange}
-          onPageSizeChange={onPageSizeChange}
-          onDelete={onDelete}
-          onClearFilters={handleClearFilters}
+        <div className="space-y-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+            <SearchInput value={filters.search} onChange={onSearchChange} />
+            <StatusFilter value={filters.status} onChange={onStatusChange} />
+            <SortSelect
+              value={filters.sort}
+              onChange={(sort) => {
+                setFilters((f) => ({ ...f, sort }));
+                onDataChange(1, pagination.itemsPerPage, sort, filters.search, filters.status);
+              }}
+            />
+          </div>
+          <ResumeList
+            resumesWithStatus={resumes}
+            pagination={pagination}
+            hasAnyResumes={pagination.totalItems > 0}
+            allSelected={resumes.length > 0 && resumes.every((r) => state.selected.has(r.id))}
+            hasMatchedResumes={resumes.some((r) => r.isMatched)}
+            onToggleSelectAll={onToggleSelectAll}
+            onToggleSelection={onToggleSelection}
+            onPageChange={onPageChange}
+            onPageSizeChange={onPageSizeChange}
+            onClearFilters={() => {
+              onSearchChange("");
+              onStatusChange("all");
+            }}
+            selectedResumes={state.selected}
+          />
+        </div>
+        {/* Dialogs */}
+        <BulkDeleteDialog
+          isOpen={bulkDeleteDialogOpen}
+          onOpenChange={setBulkDeleteDialogOpen}
+          deleteType={bulkDeleteType}
+          totalResumes={resumes.length}
+          selectedCount={state.selected.size}
+          bulkDeleting={state.bulkDeleting}
+          onConfirm={confirmBulkDelete}
         />
       </CardContent>
     </Card>

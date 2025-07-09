@@ -1,26 +1,20 @@
-import { UserIcon, Trash2Icon } from "lucide-react";
-import { Button } from "@/components/ui/button";
+import { UserIcon } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
+import { Checkbox } from "@/components/ui/checkbox";
 import { ResumeWithStatus } from "../../types";
 import { formatDate, getScoreBadgeColor } from "@/lib/utils";
 
 interface ResumeListItemProps {
   resume: ResumeWithStatus;
   onToggleSelection: (resumeId: number) => void;
-  onDelete: (resume: ResumeWithStatus) => void;
-  deleting: number | null;
+  selected: boolean;
 }
 
-export function ResumeListItem({ resume, onToggleSelection, onDelete, deleting }: ResumeListItemProps) {
+export function ResumeListItem({ resume, onToggleSelection, selected }: ResumeListItemProps) {
   return (
     <div className="flex items-center justify-between p-3 bg-white border border-slate-200 rounded-lg hover:bg-slate-50 transition-colors">
       <div className="flex items-center gap-3">
-        <input
-          type="checkbox"
-          checked={resume.selected || false}
-          onChange={() => onToggleSelection(resume.id)}
-          className="rounded border-gray-300"
-        />
+        <Checkbox checked={selected} onCheckedChange={() => onToggleSelection(resume.id)} />
         <UserIcon className="h-5 w-5 text-slate-400" />
         <div>
           <p className="font-medium text-slate-900">{resume.candidate}</p>
@@ -54,16 +48,6 @@ export function ResumeListItem({ resume, onToggleSelection, onDelete, deleting }
             ⏳ Pending Analysis
           </Badge>
         )}
-
-        <Button
-          variant="ghost"
-          size="sm"
-          onClick={() => onDelete(resume)}
-          disabled={deleting === resume.id}
-          className="text-red-600 hover:text-red-700 hover:bg-red-50"
-        >
-          <Trash2Icon className="h-4 w-4" />
-        </Button>
       </div>
     </div>
   );

@@ -1,6 +1,7 @@
 import { UserIcon } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { Checkbox } from "@/components/ui/checkbox";
 import { Pagination } from "@/components/ui/pagination";
 import { ResumeWithStatus, PaginationState } from "../../types";
 import { ResumeListItem } from "./resume-list-item";
@@ -11,13 +12,12 @@ interface ResumeListProps {
   hasAnyResumes: boolean;
   allSelected: boolean;
   hasMatchedResumes: boolean;
-  deleting: number | null;
   onToggleSelectAll: () => void;
   onToggleSelection: (resumeId: number) => void;
   onPageChange: (page: number) => void;
   onPageSizeChange: (size: number) => void;
-  onDelete: (resume: ResumeWithStatus) => void;
   onClearFilters: () => void;
+  selectedResumes: Set<number>;
 }
 
 export function ResumeList({
@@ -26,16 +26,13 @@ export function ResumeList({
   hasAnyResumes,
   allSelected,
   hasMatchedResumes,
-  deleting,
   onToggleSelectAll,
   onToggleSelection,
   onPageChange,
   onPageSizeChange,
-  onDelete,
   onClearFilters,
+  selectedResumes,
 }: ResumeListProps) {
-  // Remove sortResumes from props and usages
-
   if (pagination.totalItems === 0) {
     return (
       <div className="text-center py-12">
@@ -71,7 +68,7 @@ export function ResumeList({
     <div className="space-y-3">
       {/* Select All Control */}
       <div className="flex items-center gap-3 pb-3 border-b border-slate-200">
-        <input type="checkbox" checked={allSelected} onChange={onToggleSelectAll} className="rounded border-gray-300" />
+        <Checkbox checked={allSelected} onCheckedChange={onToggleSelectAll} />
         <span className="text-sm font-medium text-slate-700">{allSelected ? "Deselect All" : "Select All"}</span>
         {hasMatchedResumes && (
           <Badge variant="outline" className="text-xs ml-auto">
@@ -86,8 +83,7 @@ export function ResumeList({
           key={resume.id}
           resume={resume}
           onToggleSelection={onToggleSelection}
-          onDelete={onDelete}
-          deleting={deleting}
+          selected={selectedResumes.has(resume.id)}
         />
       ))}
 
