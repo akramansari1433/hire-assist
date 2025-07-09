@@ -18,6 +18,7 @@ import {
 import { Label } from "@/components/ui/label";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { PlusIcon, BriefcaseIcon, CalendarIcon, SearchIcon, ArrowRightIcon, Trash2Icon } from "lucide-react";
+import { formatDate } from "@/lib/utils";
 
 interface Job {
   id: number;
@@ -116,14 +117,6 @@ export default function JobsPage() {
       job.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
       job.jdText.toLowerCase().includes(searchTerm.toLowerCase())
   );
-
-  const formatDate = (dateString: string) => {
-    return new Date(dateString).toLocaleDateString("en-US", {
-      year: "numeric",
-      month: "short",
-      day: "numeric",
-    });
-  };
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-50 to-slate-100 dark:from-slate-900 dark:to-slate-800">

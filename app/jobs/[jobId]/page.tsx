@@ -8,7 +8,6 @@ import { CandidateManagement } from "./components/candidate-management";
 import { DeleteResumeDialog } from "./components/dialogs/delete-resume-dialog";
 import { BulkDeleteDialog } from "./components/dialogs/bulk-delete-dialog";
 import { Job, Resume, ResumeWithStatus, ComparisonFromAPI, SortOption, PaginationState } from "./types";
-import { formatDate } from "./utils";
 
 export default function JobDetailPage({ params }: { params: Promise<{ jobId: string }> }) {
   const { jobId } = use(params);
@@ -407,12 +406,7 @@ export default function JobDetailPage({ params }: { params: Promise<{ jobId: str
     <div className="min-h-screen bg-gradient-to-br from-slate-50 to-slate-100 dark:from-slate-900 dark:to-slate-800">
       <div className="container mx-auto px-4 py-8">
         {/* Header */}
-        <Header
-          job={job}
-          totalResumesCount={totalResumesCount}
-          allComparisons={allComparisons.length}
-          formatDate={formatDate}
-        />
+        <Header job={job} totalResumesCount={totalResumesCount} allComparisons={allComparisons.length} />
 
         {/* Delete Confirmation Dialogs */}
         <DeleteResumeDialog

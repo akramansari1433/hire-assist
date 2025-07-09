@@ -1,6 +1,6 @@
 import { Badge } from "@/components/ui/badge";
 import { MatchResult } from "../../types";
-import { getScoreLabel, getScoreBadgeColor } from "../../utils";
+import { getScoreBadgeColor, getScoreLabel } from "@/lib/utils";
 
 interface ResultsCardsProps {
   matchResults: MatchResult[];

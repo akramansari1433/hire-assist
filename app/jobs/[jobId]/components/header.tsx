@@ -2,15 +2,15 @@ import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { ArrowLeftIcon } from "lucide-react";
 import { Job } from "../types";
+import { formatDate } from "@/lib/utils";
 
 interface HeaderProps {
   job: Job;
   totalResumesCount: number;
   allComparisons: number;
-  formatDate: (dateString: string) => string;
 }
 
-export function Header({ job, totalResumesCount, allComparisons, formatDate }: HeaderProps) {
+export function Header({ job, totalResumesCount, allComparisons }: HeaderProps) {
   return (
     <div className="mb-6">
       {/* Navigation Breadcrumb */}

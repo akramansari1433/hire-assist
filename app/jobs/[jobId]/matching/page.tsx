@@ -16,7 +16,8 @@ import {
   Analytics,
   PaginationState,
 } from "./types";
-import { getScoreLabel, exportToCSV, generatePDFReport } from "./utils";
+import { getScoreLabel } from "@/lib/utils";
+import { exportToCSV, generatePDFReport } from "./utils";
 
 export default function MatchingPage({ params }: { params: Promise<{ jobId: string }> }) {
   const { jobId } = use(params);

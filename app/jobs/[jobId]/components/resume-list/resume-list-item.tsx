@@ -2,7 +2,7 @@ import { UserIcon, Trash2Icon } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { ResumeWithStatus } from "../../types";
-import { formatDate, getScoreBadgeColor } from "../../utils";
+import { formatDate, getScoreBadgeColor } from "@/lib/utils";
 
 interface ResumeListItemProps {
   resume: ResumeWithStatus;
