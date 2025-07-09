@@ -809,7 +809,7 @@ export default function JobDetailPage({ params }: { params: Promise<{ jobId: str
                     {/* Navigation to Full Analysis */}
                     <div className="pt-4 border-t">
                       <Link href={`/jobs/${jobId}/matching`}>
-                        <Button className="w-full" variant="outline">
+                        <Button className="w-full bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700">
                           <BarChart3Icon className="h-4 w-4 mr-2" />
                           View Detailed Analysis Dashboard
                           <ArrowRightIcon className="h-4 w-4 ml-2" />
