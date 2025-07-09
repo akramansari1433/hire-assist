@@ -91,6 +91,44 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ jobI
       .where(whereConditions);
     const total = totalResult[0]?.count || 0;
 
+    // Get unfiltered analytics for overall statistics
+    const unfiltered = await db
+      .select({
+        similarity: comparisons.similarity,
+        fitScore: comparisons.fitScore,
+      })
+      .from(comparisons)
+      .innerJoin(resumes, eq(resumes.id, comparisons.resumeId))
+      .where(eq(comparisons.jobId, jobIdNum));
+
+    // Calculate unfiltered analytics
+    const unfilteredAnalytics = {
+      total: unfiltered.length,
+      excellent: unfiltered.filter((c) => {
+        const score = c.fitScore ?? c.similarity ?? 0;
+        return score >= 0.8;
+      }).length,
+      good: unfiltered.filter((c) => {
+        const score = c.fitScore ?? c.similarity ?? 0;
+        return score >= 0.6 && score < 0.8;
+      }).length,
+      fair: unfiltered.filter((c) => {
+        const score = c.fitScore ?? c.similarity ?? 0;
+        return score >= 0.4 && score < 0.6;
+      }).length,
+      poor: unfiltered.filter((c) => {
+        const score = c.fitScore ?? c.similarity ?? 0;
+        return score < 0.4;
+      }).length,
+      averageScore:
+        unfiltered.length > 0
+          ? unfiltered.reduce((sum, c) => {
+              const score = c.fitScore ?? c.similarity ?? 0;
+              return sum + score;
+            }, 0) / unfiltered.length
+          : 0,
+    };
+
     // Main query with pagination and joins
     const comparisonList = await db
       .select({
@@ -127,8 +165,8 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ jobI
     const hasNextPage = page < totalPages;
     const hasPreviousPage = page > 1;
 
-    // Calculate analytics for the current page
-    const analytics = {
+    // Calculate filtered analytics for current page/filter
+    const filteredAnalytics = {
       total: comparisonList.length,
       excellent: comparisonList.filter((c) => {
         const score = c.fitScore ?? c.similarity ?? 0;
@@ -171,7 +209,8 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ jobI
         sortBy,
         sortOrder,
       },
-      analytics,
+      analytics: unfilteredAnalytics, // Use unfiltered for overall stats
+      filteredAnalytics, // Optional: include filtered stats if needed
     });
   } catch (error) {
     console.error("Error fetching comparisons:", error);
