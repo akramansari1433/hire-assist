@@ -38,7 +38,6 @@ interface CandidateManagementProps {
   onRunMatching: () => void;
   getMatchingButtonText: () => string;
   shouldDisableMatching: () => boolean;
-  sortResumes: (resumes: ResumeWithStatus[]) => ResumeWithStatus[];
 }
 
 export function CandidateManagement({
@@ -69,7 +68,6 @@ export function CandidateManagement({
   onRunMatching,
   getMatchingButtonText,
   shouldDisableMatching,
-  sortResumes,
 }: CandidateManagementProps) {
   const handleClearFilters = () => {
     onSearchChange("");
@@ -157,7 +155,6 @@ export function CandidateManagement({
           onPageSizeChange={onPageSizeChange}
           onDelete={onDelete}
           onClearFilters={handleClearFilters}
-          sortResumes={sortResumes}
         />
       </CardContent>
     </Card>

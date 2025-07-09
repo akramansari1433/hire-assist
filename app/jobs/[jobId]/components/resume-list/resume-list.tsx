@@ -18,7 +18,6 @@ interface ResumeListProps {
   onPageSizeChange: (size: number) => void;
   onDelete: (resume: ResumeWithStatus) => void;
   onClearFilters: () => void;
-  sortResumes: (resumes: ResumeWithStatus[]) => ResumeWithStatus[];
 }
 
 export function ResumeList({
@@ -34,9 +33,8 @@ export function ResumeList({
   onPageSizeChange,
   onDelete,
   onClearFilters,
-  sortResumes,
 }: ResumeListProps) {
-  const sortedResumes = sortResumes(resumesWithStatus);
+  // Remove sortResumes from props and usages
 
   if (pagination.totalItems === 0) {
     return (
@@ -83,7 +81,7 @@ export function ResumeList({
       </div>
 
       {/* Resume List */}
-      {sortedResumes.map((resume) => (
+      {resumesWithStatus.map((resume) => (
         <ResumeListItem
           key={resume.id}
           resume={resume}

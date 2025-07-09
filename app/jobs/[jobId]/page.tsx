@@ -180,50 +180,7 @@ export default function JobDetailPage({ params }: { params: Promise<{ jobId: str
   };
 
   // Utility functions
-  const sortResumes = (resumes: ResumeWithStatus[]): ResumeWithStatus[] => {
-    return [...resumes].sort((a, b) => {
-      switch (sortOption) {
-        case "similarity-desc":
-          const aSimScore = a.matchResult?.similarity || 0;
-          const bSimScore = b.matchResult?.similarity || 0;
-          return bSimScore - aSimScore;
-
-        case "similarity-asc":
-          const aSimScoreAsc = a.matchResult?.similarity || 0;
-          const bSimScoreAsc = b.matchResult?.similarity || 0;
-          return aSimScoreAsc - bSimScoreAsc;
-
-        case "fit-desc":
-          const aFitScore =
-            a.matchResult?.fitScore !== undefined ? a.matchResult.fitScore : a.matchResult?.similarity || 0;
-          const bFitScore =
-            b.matchResult?.fitScore !== undefined ? b.matchResult.fitScore : b.matchResult?.similarity || 0;
-          return bFitScore - aFitScore;
-
-        case "fit-asc":
-          const aFitScoreAsc =
-            a.matchResult?.fitScore !== undefined ? a.matchResult.fitScore : a.matchResult?.similarity || 0;
-          const bFitScoreAsc =
-            b.matchResult?.fitScore !== undefined ? b.matchResult.fitScore : b.matchResult?.similarity || 0;
-          return aFitScoreAsc - bFitScoreAsc;
-
-        case "name-asc":
-          return a.candidate.localeCompare(b.candidate);
-
-        case "name-desc":
-          return b.candidate.localeCompare(a.candidate);
-
-        case "date-desc":
-          return new Date(b.when).getTime() - new Date(a.when).getTime();
-
-        case "date-asc":
-          return new Date(a.when).getTime() - new Date(b.when).getTime();
-
-        default:
-          return 0;
-      }
-    });
-  };
+  // Remove the sortResumes function
 
   // Business logic handlers
   const handleUploadResume = async (candidateName: string, fullText: string) => {
@@ -452,7 +409,6 @@ export default function JobDetailPage({ params }: { params: Promise<{ jobId: str
               onRunMatching={runMatching}
               getMatchingButtonText={getMatchingButtonText}
               shouldDisableMatching={shouldDisableMatching}
-              sortResumes={sortResumes}
             />
           </div>
         </div>
