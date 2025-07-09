@@ -6,12 +6,11 @@ import { Job, Analytics } from "../types";
 interface HeaderProps {
   job: Job;
   analytics: Analytics;
-  matchResultsCount: number;
   matching: boolean;
   onRunMatching: () => void;
 }
 
-export function Header({ job, analytics, matchResultsCount, matching, onRunMatching }: HeaderProps) {
+export function Header({ job, analytics, matching, onRunMatching }: HeaderProps) {
   return (
     <div className="mb-6">
       {/* Navigation Breadcrumb */}
@@ -46,29 +45,23 @@ export function Header({ job, analytics, matchResultsCount, matching, onRunMatch
           <h1 className="text-3xl font-bold text-slate-900 dark:text-slate-100 mb-2">Analysis Dashboard</h1>
           <div className="flex items-center gap-4 text-sm text-slate-600 dark:text-slate-400">
             <span className="font-medium">{job.title}</span>
-            {matchResultsCount > 0 && (
+            <span>•</span>
+            <span>
+              {analytics.total} candidate{analytics.total !== 1 ? "s" : ""}
+            </span>
+            <span>•</span>
+            <span className="text-green-600 font-medium">{analytics.excellent} excellent</span>
+            {analytics.averageScore > 0 && (
               <>
                 <span>•</span>
-                <span>
-                  {analytics.total} candidate{analytics.total !== 1 ? "s" : ""}
-                </span>
-                <span>•</span>
-                <span className="text-green-600 font-medium">{analytics.excellent} excellent</span>
-                {analytics.averageScore > 0 && (
-                  <>
-                    <span>•</span>
-                    <span className="text-blue-600 font-medium">{(analytics.averageScore * 100).toFixed(1)}% avg</span>
-                  </>
-                )}
+                <span className="text-blue-600 font-medium">{(analytics.averageScore * 100).toFixed(1)}% avg</span>
               </>
             )}
           </div>
         </div>
-        {matchResultsCount > 0 && (
-          <Button onClick={onRunMatching} disabled={matching} className="bg-blue-600 hover:bg-blue-700">
-            {matching ? "Analyzing..." : "Run New Analysis"}
-          </Button>
-        )}
+        <Button onClick={onRunMatching} disabled={matching} className="bg-blue-600 hover:bg-blue-700">
+          {matching ? "Analyzing..." : "Run New Analysis"}
+        </Button>
       </div>
     </div>
   );

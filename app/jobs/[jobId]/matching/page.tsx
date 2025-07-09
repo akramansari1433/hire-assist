@@ -212,13 +212,7 @@ export default function MatchingPage({ params }: { params: Promise<{ jobId: stri
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-50 to-slate-100 dark:from-slate-900 dark:to-slate-800">
       <div className="container mx-auto px-4 py-8">
-        <Header
-          job={job}
-          analytics={analytics}
-          matchResultsCount={matchResults.length}
-          matching={matching}
-          onRunMatching={runMatching}
-        />
+        <Header job={job} analytics={analytics} matching={matching} onRunMatching={runMatching} />
 
         <AnalyticsOverview analytics={analytics} hasAnyResults={hasAnyResults} />
 
