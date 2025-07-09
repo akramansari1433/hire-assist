@@ -408,25 +408,6 @@ export default function JobDetailPage({ params }: { params: Promise<{ jobId: str
         {/* Header */}
         <Header job={job} totalResumesCount={totalResumesCount} allComparisons={allComparisons.length} />
 
-        {/* Delete Confirmation Dialogs */}
-        <DeleteResumeDialog
-          isOpen={deleteConfirmOpen}
-          onOpenChange={setDeleteConfirmOpen}
-          resume={resumeToDelete}
-          deleting={deleting === resumeToDelete?.id}
-          onConfirm={confirmDeleteResume}
-        />
-
-        <BulkDeleteDialog
-          isOpen={bulkDeleteConfirmOpen}
-          onOpenChange={setBulkDeleteConfirmOpen}
-          deleteType={bulkDeleteType}
-          totalResumes={resumesWithStatus.length}
-          selectedCount={selectedResumes.length}
-          bulkDeleting={bulkDeleting}
-          onConfirm={confirmBulkDelete}
-        />
-
         <div className="grid gap-6 lg:grid-cols-2">
           {/* Job Description */}
           <JobDescriptionCard job={job} onUpdate={handleUpdateJob} isUpdating={isUpdatingJob} />
@@ -475,7 +456,26 @@ export default function JobDetailPage({ params }: { params: Promise<{ jobId: str
             />
           </div>
         </div>
+        {/* Dialogs moved below for best practice */}
       </div>
+      {/* Delete Confirmation Dialogs (moved to bottom) */}
+      <DeleteResumeDialog
+        isOpen={deleteConfirmOpen}
+        onOpenChange={setDeleteConfirmOpen}
+        resume={resumeToDelete}
+        deleting={deleting === resumeToDelete?.id}
+        onConfirm={confirmDeleteResume}
+      />
+
+      <BulkDeleteDialog
+        isOpen={bulkDeleteConfirmOpen}
+        onOpenChange={setBulkDeleteConfirmOpen}
+        deleteType={bulkDeleteType}
+        totalResumes={resumesWithStatus.length}
+        selectedCount={selectedResumes.length}
+        bulkDeleting={bulkDeleting}
+        onConfirm={confirmBulkDelete}
+      />
     </div>
   );
 }
