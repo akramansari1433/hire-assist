@@ -54,6 +54,8 @@ export default function MatchingPage({ params }: { params: Promise<{ jobId: stri
     averageScore: 0,
   });
 
+  const [matchResultsLoading, setMatchResultsLoading] = useState(true);
+
   // Handle page size changes with better state management
   const handlePageSizeChange = (newPageSize: number) => {
     setPageSize(newPageSize);
@@ -79,6 +81,7 @@ export default function MatchingPage({ params }: { params: Promise<{ jobId: stri
   }, [jobId]);
 
   const fetchExistingComparisons = useCallback(async () => {
+    setMatchResultsLoading(true);
     try {
       const params = new URLSearchParams({
         page: currentPage.toString(),
@@ -130,6 +133,8 @@ export default function MatchingPage({ params }: { params: Promise<{ jobId: stri
       }
     } catch (error) {
       console.error("Error fetching existing comparisons:", error);
+    } finally {
+      setMatchResultsLoading(false);
     }
   }, [jobId, currentPage, pageSize, sortOption, search, filterOption]);
 
@@ -183,7 +188,7 @@ export default function MatchingPage({ params }: { params: Promise<{ jobId: stri
     setExpandedMissing((prev) => ({ ...prev, [resumeId]: !prev[resumeId] }));
   };
 
-  if (loading) {
+  if (loading || matchResultsLoading) {
     return (
       <div className="min-h-screen bg-gradient-to-br from-slate-50 to-slate-100 dark:from-slate-900 dark:to-slate-800">
         <div className="container mx-auto px-4 py-8">
@@ -195,7 +200,7 @@ export default function MatchingPage({ params }: { params: Promise<{ jobId: stri
     );
   }
 
-  if (!job) {
+  if (!job || (!matchResults.length && !matchResultsLoading)) {
     return (
       <div className="min-h-screen bg-gradient-to-br from-slate-50 to-slate-100 dark:from-slate-900 dark:to-slate-800">
         <div className="container mx-auto px-4 py-8">
