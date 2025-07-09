@@ -581,7 +581,11 @@ export default function MatchingPage({ params }: { params: Promise<{ jobId: stri
                 <CardTitle>Candidate Analysis Results</CardTitle>
                 <CardDescription>Advanced sorting, filtering, and comparison tools</CardDescription>
               </div>
-              {/* The button was moved to the header */}
+              {matchResults.length > 0 && (
+                <Badge variant="outline" className="text-xs">
+                  Showing {sortedAndFilteredResults.length} of {matchResults.length} candidates
+                </Badge>
+              )}
             </div>
 
             {/* Advanced Controls */}
@@ -660,11 +664,6 @@ export default function MatchingPage({ params }: { params: Promise<{ jobId: stri
                     </Button>
                   </div>
                 </div>
-
-                {/* Results count */}
-                <Badge variant="outline" className="ml-2">
-                  Showing {sortedAndFilteredResults.length} of {matchResults.length}
-                </Badge>
               </div>
             )}
           </CardHeader>
