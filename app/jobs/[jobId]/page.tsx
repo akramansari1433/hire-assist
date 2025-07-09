@@ -23,8 +23,8 @@ import {
   UserIcon,
   Trash2Icon,
   ArrowUpDownIcon,
-  ChevronDownIcon,
-  ChevronUpIcon,
+  BarChart3Icon,
+  ArrowRightIcon,
 } from "lucide-react";
 
 interface Job {
@@ -94,9 +94,6 @@ export default function JobDetailPage({ params }: { params: Promise<{ jobId: str
   const [bulkDeleteType, setBulkDeleteType] = useState<"selected" | "all">("selected");
   const [sortOption, setSortOption] = useState<SortOption>("fit-desc");
   const [matching, setMatching] = useState(false);
-  const [expandedDetails, setExpandedDetails] = useState<{ [key: number]: boolean }>({});
-  const [expandedMatching, setExpandedMatching] = useState<{ [key: number]: boolean }>({});
-  const [expandedMissing, setExpandedMissing] = useState<{ [key: number]: boolean }>({});
 
   useEffect(() => {
     if (jobId) {
@@ -322,18 +319,6 @@ export default function JobDetailPage({ params }: { params: Promise<{ jobId: str
     setResumesWithStatus((prev) => prev.map((resume) => ({ ...resume, selected: !allSelected })));
   };
 
-  const toggleDetails = (resumeId: number) => {
-    setExpandedDetails((prev) => ({ ...prev, [resumeId]: !prev[resumeId] }));
-  };
-
-  const toggleMatchingSkills = (resumeId: number) => {
-    setExpandedMatching((prev) => ({ ...prev, [resumeId]: !prev[resumeId] }));
-  };
-
-  const toggleMissingSkills = (resumeId: number) => {
-    setExpandedMissing((prev) => ({ ...prev, [resumeId]: !prev[resumeId] }));
-  };
-
   const selectedResumes = resumesWithStatus.filter((resume) => resume.selected);
   const hasResumes = resumesWithStatus.length > 0;
   const hasSelectedResumes = selectedResumes.length > 0;
@@ -402,6 +387,16 @@ export default function JobDetailPage({ params }: { params: Promise<{ jobId: str
     if (score >= 0.8) return "bg-green-100 text-green-800 border-green-200";
     if (score >= 0.6) return "bg-yellow-100 text-yellow-800 border-yellow-200";
     return "bg-red-100 text-red-800 border-red-200";
+  };
+
+  // Quick stats for analytics preview
+  const analytics = {
+    total: resumesWithStatus.length,
+    analyzed: resumesWithStatus.filter((r) => r.isMatched).length,
+    excellent: resumesWithStatus.filter(
+      (r) => r.matchResult && (r.matchResult.fitScore || r.matchResult.similarity) >= 0.8
+    ).length,
+    pending: resumesWithStatus.filter((r) => !r.isMatched).length,
   };
 
   if (loading) {
@@ -524,14 +519,55 @@ export default function JobDetailPage({ params }: { params: Promise<{ jobId: str
             </CardContent>
           </Card>
 
-          {/* Unified Resume Management & Analysis */}
+          {/* Candidate Management */}
           <div className="space-y-6">
+            {/* Quick Analytics & Analysis Link */}
+            {hasResumes && (
+              <Card className="border-blue-200 bg-blue-50">
+                <CardHeader className="pb-4">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <CardTitle className="text-lg text-blue-900">Analysis Overview</CardTitle>
+                      <CardDescription className="text-blue-700">
+                        {analytics.analyzed} of {analytics.total} candidates analyzed
+                      </CardDescription>
+                    </div>
+                    <BarChart3Icon className="h-8 w-8 text-blue-600" />
+                  </div>
+                </CardHeader>
+                <CardContent className="pt-0">
+                  <div className="grid grid-cols-3 gap-4 mb-4">
+                    <div className="text-center">
+                      <p className="text-2xl font-bold text-green-600">{analytics.excellent}</p>
+                      <p className="text-xs text-slate-600">Excellent</p>
+                    </div>
+                    <div className="text-center">
+                      <p className="text-2xl font-bold text-blue-600">{analytics.analyzed}</p>
+                      <p className="text-xs text-slate-600">Analyzed</p>
+                    </div>
+                    <div className="text-center">
+                      <p className="text-2xl font-bold text-orange-600">{analytics.pending}</p>
+                      <p className="text-xs text-slate-600">Pending</p>
+                    </div>
+                  </div>
+                  <Link href={`/jobs/${jobId}/matching`}>
+                    <Button className="w-full bg-blue-600 hover:bg-blue-700">
+                      <BarChart3Icon className="h-4 w-4 mr-2" />
+                      View Detailed Analysis Dashboard
+                      <ArrowRightIcon className="h-4 w-4 ml-2" />
+                    </Button>
+                  </Link>
+                </CardContent>
+              </Card>
+            )}
+
+            {/* Candidate Management */}
             <Card>
               <CardHeader>
                 <div className="flex items-center justify-between">
                   <div>
-                    <CardTitle>Candidates ({resumes.length})</CardTitle>
-                    <CardDescription>Manage resumes and view AI analysis results</CardDescription>
+                    <CardTitle>Candidate Management ({resumes.length})</CardTitle>
+                    <CardDescription>Upload, organize, and manage candidate resumes</CardDescription>
                   </div>
                   <div className="flex gap-2">
                     {resumes.length > 0 && (
@@ -539,7 +575,8 @@ export default function JobDetailPage({ params }: { params: Promise<{ jobId: str
                         onClick={() => runMatching()}
                         disabled={shouldDisableMatching()}
                         size="sm"
-                        className="bg-blue-600 hover:bg-blue-700"
+                        variant="outline"
+                        className="border-blue-200 text-blue-700 hover:bg-blue-50"
                       >
                         {matching ? "Analyzing..." : getMatchingButtonText()}
                       </Button>
@@ -592,7 +629,7 @@ export default function JobDetailPage({ params }: { params: Promise<{ jobId: str
                   </div>
                 </div>
 
-                {/* Controls Row */}
+                {/* Management Controls */}
                 {hasResumes && (
                   <div className="flex flex-wrap items-center gap-3 pt-4 border-t">
                     {/* Bulk Actions */}
@@ -661,7 +698,7 @@ export default function JobDetailPage({ params }: { params: Promise<{ jobId: str
                     </p>
                   </div>
                 ) : (
-                  <div className="space-y-4">
+                  <div className="space-y-3">
                     {/* Select All Control */}
                     <div className="flex items-center gap-3 pb-3 border-b border-slate-200">
                       <input
@@ -680,183 +717,71 @@ export default function JobDetailPage({ params }: { params: Promise<{ jobId: str
                       )}
                     </div>
 
-                    {/* Unified Resume List */}
+                    {/* Simplified Resume List */}
                     {sortedResumes.map((resume) => (
-                      <div key={resume.id} className="border border-slate-200 rounded-lg overflow-hidden">
-                        {/* Main Resume Row */}
-                        <div className="flex items-center justify-between p-4 bg-white hover:bg-slate-50 transition-colors">
-                          <div className="flex items-center gap-3">
-                            <input
-                              type="checkbox"
-                              checked={resume.selected || false}
-                              onChange={() => toggleResumeSelection(resume.id)}
-                              className="rounded border-gray-300"
-                            />
-                            <UserIcon className="h-5 w-5 text-slate-400" />
-                            <div>
-                              <p className="font-medium text-slate-900">{resume.candidate}</p>
-                              <p className="text-sm text-slate-500">Uploaded {formatDate(resume.when)}</p>
-                            </div>
-                          </div>
-
-                          <div className="flex items-center gap-2">
-                            {/* Match Status & Scores */}
-                            {resume.isMatched && resume.matchResult ? (
-                              <div className="flex items-center gap-2">
-                                <Badge variant="outline" className="text-xs">
-                                  Sim: {(resume.matchResult.similarity * 100).toFixed(1)}%
-                                </Badge>
-                                <Badge
-                                  className={getScoreBadgeColor(
-                                    resume.matchResult.fitScore !== undefined
-                                      ? resume.matchResult.fitScore
-                                      : resume.matchResult.similarity
-                                  )}
-                                >
-                                  Fit:{" "}
-                                  {(
-                                    (resume.matchResult.fitScore !== undefined
-                                      ? resume.matchResult.fitScore
-                                      : resume.matchResult.similarity) * 100
-                                  ).toFixed(1)}
-                                  %
-                                </Badge>
-                                <Button
-                                  variant="ghost"
-                                  size="sm"
-                                  onClick={() => toggleDetails(resume.id)}
-                                  className="text-slate-600 hover:text-slate-900"
-                                >
-                                  {expandedDetails[resume.id] ? (
-                                    <ChevronUpIcon className="h-4 w-4" />
-                                  ) : (
-                                    <ChevronDownIcon className="h-4 w-4" />
-                                  )}
-                                </Button>
-                              </div>
-                            ) : (
-                              <Badge variant="outline" className="border-orange-200 text-orange-700">
-                                ⏳ Pending Analysis
-                              </Badge>
-                            )}
-
-                            <Button
-                              variant="ghost"
-                              size="sm"
-                              onClick={() => handleDeleteResume(resume)}
-                              disabled={deleting === resume.id}
-                              className="text-red-600 hover:text-red-700 hover:bg-red-50"
-                            >
-                              <Trash2Icon className="h-4 w-4" />
-                            </Button>
+                      <div
+                        key={resume.id}
+                        className="flex items-center justify-between p-3 bg-white border border-slate-200 rounded-lg hover:bg-slate-50 transition-colors"
+                      >
+                        <div className="flex items-center gap-3">
+                          <input
+                            type="checkbox"
+                            checked={resume.selected || false}
+                            onChange={() => toggleResumeSelection(resume.id)}
+                            className="rounded border-gray-300"
+                          />
+                          <UserIcon className="h-5 w-5 text-slate-400" />
+                          <div>
+                            <p className="font-medium text-slate-900">{resume.candidate}</p>
+                            <p className="text-sm text-slate-500">Uploaded {formatDate(resume.when)}</p>
                           </div>
                         </div>
 
-                        {/* Expandable Analysis Details */}
-                        {resume.isMatched && resume.matchResult && expandedDetails[resume.id] && (
-                          <div className="border-t border-slate-200 bg-slate-50 p-4">
-                            <div className="space-y-4">
-                              {/* Summary */}
-                              <div>
-                                <h5 className="text-sm font-medium text-slate-900 mb-2">Analysis Summary</h5>
-                                <p className="text-sm text-slate-700 bg-white p-3 rounded border">
-                                  {resume.matchResult.summary || "Analysis completed successfully"}
-                                </p>
-                              </div>
-
-                              {/* Skills Grid */}
-                              <div className="grid md:grid-cols-2 gap-4">
-                                {/* Matching Skills */}
-                                {resume.matchResult.matching_skills &&
-                                  resume.matchResult.matching_skills.length > 0 && (
-                                    <div>
-                                      <h5 className="text-sm font-medium text-green-700 mb-2">
-                                        ✅ Matching Skills ({resume.matchResult.matching_skills.length})
-                                      </h5>
-                                      <div className="flex flex-wrap gap-1">
-                                        {(expandedMatching[resume.id]
-                                          ? resume.matchResult.matching_skills
-                                          : resume.matchResult.matching_skills.slice(0, 4)
-                                        ).map((skill, index) => (
-                                          <Badge
-                                            key={index}
-                                            variant="secondary"
-                                            className="bg-green-100 text-green-800 text-xs"
-                                          >
-                                            {skill}
-                                          </Badge>
-                                        ))}
-                                        {resume.matchResult.matching_skills.length > 4 && (
-                                          <button
-                                            onClick={() => toggleMatchingSkills(resume.id)}
-                                            className="inline-flex items-center px-2 py-1 text-xs font-medium text-green-800 bg-green-100 border border-green-200 rounded hover:bg-green-200 transition-colors"
-                                          >
-                                            {expandedMatching[resume.id]
-                                              ? "Show less"
-                                              : `+${resume.matchResult.matching_skills.length - 4} more`}
-                                          </button>
-                                        )}
-                                      </div>
-                                    </div>
-                                  )}
-
-                                {/* Missing Skills */}
-                                {resume.matchResult.missing_skills && resume.matchResult.missing_skills.length > 0 && (
-                                  <div>
-                                    <h5 className="text-sm font-medium text-orange-700 mb-2">
-                                      ⚠️ Missing Skills ({resume.matchResult.missing_skills.length})
-                                    </h5>
-                                    <div className="flex flex-wrap gap-1">
-                                      {(expandedMissing[resume.id]
-                                        ? resume.matchResult.missing_skills
-                                        : resume.matchResult.missing_skills.slice(0, 4)
-                                      ).map((skill, index) => (
-                                        <Badge
-                                          key={index}
-                                          variant="secondary"
-                                          className="bg-orange-100 text-orange-800 text-xs"
-                                        >
-                                          {skill}
-                                        </Badge>
-                                      ))}
-                                      {resume.matchResult.missing_skills.length > 4 && (
-                                        <button
-                                          onClick={() => toggleMissingSkills(resume.id)}
-                                          className="inline-flex items-center px-2 py-1 text-xs font-medium text-orange-800 bg-orange-100 border border-orange-200 rounded hover:bg-orange-200 transition-colors"
-                                        >
-                                          {expandedMissing[resume.id]
-                                            ? "Show less"
-                                            : `+${resume.matchResult.missing_skills.length - 4} more`}
-                                        </button>
-                                      )}
-                                    </div>
-                                  </div>
+                        <div className="flex items-center gap-2">
+                          {/* Match Status & Quick Scores */}
+                          {resume.isMatched && resume.matchResult ? (
+                            <div className="flex items-center gap-2">
+                              <Badge variant="outline" className="text-xs">
+                                Sim: {(resume.matchResult.similarity * 100).toFixed(1)}%
+                              </Badge>
+                              <Badge
+                                className={getScoreBadgeColor(
+                                  resume.matchResult.fitScore !== undefined
+                                    ? resume.matchResult.fitScore
+                                    : resume.matchResult.similarity
                                 )}
-                              </div>
+                              >
+                                Fit:{" "}
+                                {(
+                                  (resume.matchResult.fitScore !== undefined
+                                    ? resume.matchResult.fitScore
+                                    : resume.matchResult.similarity) * 100
+                                ).toFixed(1)}
+                                %
+                              </Badge>
                             </div>
-                          </div>
-                        )}
+                          ) : (
+                            <Badge variant="outline" className="border-orange-200 text-orange-700">
+                              ⏳ Pending Analysis
+                            </Badge>
+                          )}
+
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => handleDeleteResume(resume)}
+                            disabled={deleting === resume.id}
+                            className="text-red-600 hover:text-red-700 hover:bg-red-50"
+                          >
+                            <Trash2Icon className="h-4 w-4" />
+                          </Button>
+                        </div>
                       </div>
                     ))}
                   </div>
                 )}
               </CardContent>
             </Card>
-
-            {/* Re-analyze All */}
-            {hasMatchedResumes && (
-              <Card>
-                <CardHeader>
-                  <CardTitle className="text-lg">Analysis Options</CardTitle>
-                  <CardDescription>Re-run analysis for all candidates with updated algorithms</CardDescription>
-                </CardHeader>
-                <CardContent>
-                  <Button onClick={() => runMatching(true)} disabled={matching} variant="outline" className="w-full">
-                    {matching ? "Re-analyzing All Candidates..." : "Re-analyze All Candidates"}
-                  </Button>
-                </CardContent>
-              </Card>
-            )}
           </div>
         </div>
       </div>
