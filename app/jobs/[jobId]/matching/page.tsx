@@ -9,7 +9,6 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Label } from "@/components/ui/label";
 import {
   ArrowLeftIcon,
-  CheckCircleIcon,
   UserIcon,
   ArrowUpDownIcon,
   BarChart3Icon,
@@ -19,19 +18,15 @@ import {
   TargetIcon,
   DownloadIcon,
   FileTextIcon,
+  SearchIcon,
 } from "lucide-react";
+import { Pagination } from "@/components/ui/pagination";
 
 interface Job {
   id: number;
   title: string;
   jdText: string;
   createdAt: string;
-}
-
-interface Resume {
-  id: number;
-  candidate: string;
-  when: string;
 }
 
 interface MatchResult {
@@ -48,8 +43,8 @@ interface ComparisonFromAPI {
   resumeId: number;
   similarity: number;
   fitScore?: number;
-  matchingSkills: string[];
-  missingSkills: string[];
+  matching_skills: string[];
+  missing_skills: string[];
   summary: string;
 }
 
@@ -63,7 +58,6 @@ export default function MatchingPage({ params }: { params: Promise<{ jobId: stri
   const { jobId } = use(params);
 
   const [job, setJob] = useState<Job | null>(null);
-  const [resumes, setResumes] = useState<Resume[]>([]);
   const [matching, setMatching] = useState(false);
   const [matchResults, setMatchResults] = useState<MatchResult[]>([]);
   const [loading, setLoading] = useState(true);
@@ -72,20 +66,54 @@ export default function MatchingPage({ params }: { params: Promise<{ jobId: stri
   const [sortOption, setSortOption] = useState<SortOption>("fit-desc");
   const [viewMode, setViewMode] = useState<ViewMode>("table");
   const [filterOption, setFilterOption] = useState<FilterOption>("all");
+  const [search, setSearch] = useState("");
+  const [pageSize, setPageSize] = useState(10);
+  const [currentPage, setCurrentPage] = useState(1);
+  const [pagination, setPagination] = useState({
+    currentPage: 1,
+    totalPages: 1,
+    totalItems: 0,
+    itemsPerPage: 10,
+    hasNextPage: false,
+    hasPreviousPage: false,
+  });
+
+  // Add state to track if we have any results at all (before filtering)
+  const [hasAnyResults, setHasAnyResults] = useState(false);
+
+  // Handle page size changes with better state management
+  const handlePageSizeChange = (newPageSize: number) => {
+    // Use functional updates to ensure synchronization
+    setPageSize(newPageSize);
+    // Always reset to page 1 when changing page size
+    setCurrentPage(1);
+  };
+
+  // Handle page changes
+  const handlePageChange = (newPage: number) => {
+    setCurrentPage(newPage);
+  };
+  const [analytics, setAnalytics] = useState({
+    total: 0,
+    excellent: 0,
+    good: 0,
+    fair: 0,
+    poor: 0,
+    averageScore: 0,
+  });
 
   useEffect(() => {
     if (jobId) {
       fetchJobDetails();
-      fetchResumes();
     }
   }, [jobId]);
 
-  // Fetch comparisons after resumes are loaded
+  // Fetch comparisons with pagination
   useEffect(() => {
-    if (resumes.length > 0) {
+    if (jobId) {
       fetchExistingComparisons();
     }
-  }, [resumes]);
+  }, [jobId, currentPage, pageSize, sortOption, search, filterOption]);
 
   const fetchJobDetails = async () => {
     try {
@@ -100,45 +128,55 @@ export default function MatchingPage({ params }: { params: Promise<{ jobId: stri
     }
   };
 
-  const fetchResumes = async () => {
-    try {
-      const response = await fetch(`/api/jobs/${jobId}/resumes`);
-      if (response.ok) {
-        const data = await response.json();
-        setResumes(data);
-      }
-    } catch (error) {
-      console.error("Error fetching resumes:", error);
-    }
-  };
-
   const fetchExistingComparisons = async () => {
-    if (resumes.length === 0) {
-      console.log("No resumes loaded yet, skipping comparisons fetch");
-      return;
-    }
-
     try {
-      const response = await fetch(`/api/jobs/${jobId}/comparisons`);
+      const params = new URLSearchParams({
+        page: currentPage.toString(),
+        limit: pageSize.toString(),
+        sortBy: sortOption.includes("fit")
+          ? "fit"
+          : sortOption.includes("similarity")
+          ? "similarity"
+          : sortOption.includes("name")
+          ? "candidate"
+          : "createdAt",
+        sortOrder: sortOption.includes("desc") ? "desc" : "asc",
+        ...(search && { search }),
+        ...(filterOption !== "all" && { scoreFilter: filterOption }),
+      });
+
+      const response = await fetch(`/api/jobs/${jobId}/comparisons?${params}`);
       if (response.ok) {
         const data = await response.json();
-        console.log("Fetched comparisons:", data.length);
-        console.log("Available resumes:", resumes.length);
+        const enrichedResults = data.data.map((result: ComparisonFromAPI & { candidateName: string }) => ({
+          resumeId: result.resumeId,
+          similarity: result.similarity,
+          fitScore: result.fitScore !== undefined ? result.fitScore : result.similarity,
+          matching_skills: result.matching_skills || [],
+          missing_skills: result.missing_skills || [],
+          summary: result.summary || "Previously analyzed candidate",
+          candidateName: result.candidateName || "Unknown Candidate",
+        }));
 
-        const enrichedResults = data.map((result: ComparisonFromAPI) => {
-          const resume = resumes.find((r) => r.id === result.resumeId);
-          console.log(`Mapping resume ${result.resumeId} to candidate: ${resume?.candidate}`);
-          return {
-            resumeId: result.resumeId,
-            similarity: result.similarity,
-            fitScore: result.fitScore !== undefined ? result.fitScore : result.similarity,
-            matching_skills: result.matchingSkills || [],
-            missing_skills: result.missingSkills || [],
-            summary: result.summary || "Previously analyzed candidate",
-            candidateName: resume?.candidate || "Unknown Candidate",
-          };
-        });
         setMatchResults(enrichedResults);
+        setPagination({
+          ...data.pagination,
+          itemsPerPage: pageSize, // Ensure consistency with local pageSize state
+        });
+        setAnalytics(data.analytics);
+        setHasAnyResults(data.analytics.total > 0); // Track total unfiltered results, not current page
+      } else {
+        setMatchResults([]);
+        setPagination({
+          currentPage: 1,
+          totalPages: 1,
+          totalItems: 0,
+          itemsPerPage: 10,
+          hasNextPage: false,
+          hasPreviousPage: false,
+        });
+        setAnalytics({ total: 0, excellent: 0, good: 0, fair: 0, poor: 0, averageScore: 0 });
+        setHasAnyResults(false); // Set to false if no results
       }
     } catch (error) {
       console.error("Error fetching existing comparisons:", error);
@@ -168,65 +206,22 @@ export default function MatchingPage({ params }: { params: Promise<{ jobId: stri
 
       // Enrich results with candidate names
       const enrichedResults = results.map((result: MatchResult) => {
-        const resume = resumes.find((r) => r.id === result.resumeId);
         return {
           ...result,
-          candidateName: resume?.candidate || "Unknown Candidate",
+          candidateName: result.candidateName || "Unknown Candidate",
         };
       });
 
       setMatchResults(enrichedResults);
+      // After running matching, fetch the paginated results
+      setCurrentPage(1); // Reset to first page
+      fetchExistingComparisons(); // This will update pagination and analytics from backend
     } catch (error) {
       console.error("Error running matching:", error);
       alert(`Matching error: ${error instanceof Error ? error.message : String(error)}`);
     } finally {
       setMatching(false);
     }
-  };
-
-  const sortResults = (results: MatchResult[], option: SortOption): MatchResult[] => {
-    return [...results].sort((a, b) => {
-      switch (option) {
-        case "fit-desc":
-          const aFit = a.fitScore !== undefined ? a.fitScore : a.similarity;
-          const bFit = b.fitScore !== undefined ? b.fitScore : b.similarity;
-          return bFit - aFit;
-        case "fit-asc":
-          const aFitAsc = a.fitScore !== undefined ? a.fitScore : a.similarity;
-          const bFitAsc = b.fitScore !== undefined ? b.fitScore : b.similarity;
-          return aFitAsc - bFitAsc;
-        case "similarity-desc":
-          return b.similarity - a.similarity;
-        case "similarity-asc":
-          return a.similarity - b.similarity;
-        case "name-asc":
-          return (a.candidateName || "").localeCompare(b.candidateName || "");
-        case "name-desc":
-          return (b.candidateName || "").localeCompare(a.candidateName || "");
-        default:
-          return 0;
-      }
-    });
-  };
-
-  const filterResults = (results: MatchResult[], filter: FilterOption): MatchResult[] => {
-    if (filter === "all") return results;
-
-    return results.filter((result) => {
-      const score = result.fitScore !== undefined ? result.fitScore : result.similarity;
-      switch (filter) {
-        case "excellent":
-          return score >= 0.8;
-        case "good":
-          return score >= 0.6 && score < 0.8;
-        case "fair":
-          return score >= 0.4 && score < 0.6;
-        case "poor":
-          return score < 0.4;
-        default:
-          return true;
-      }
-    });
   };
 
   const getScoreLabel = (score: number): string => {
@@ -263,7 +258,7 @@ export default function MatchingPage({ params }: { params: Promise<{ jobId: stri
       "Missing Skills",
       "Summary",
     ];
-    const csvData = sortedAndFilteredResults.map((result, index) => {
+    const csvData = matchResults.map((result, index) => {
       const fitScore = result.fitScore !== undefined ? result.fitScore : result.similarity;
       return [
         index + 1,
@@ -359,7 +354,7 @@ export default function MatchingPage({ params }: { params: Promise<{ jobId: stri
             </tr>
           </thead>
           <tbody>
-            ${sortedAndFilteredResults
+            ${matchResults
               .map((result, index) => {
                 const fitScore = result.fitScore !== undefined ? result.fitScore : result.similarity;
                 const grade = getScoreLabel(fitScore);
@@ -405,20 +400,7 @@ export default function MatchingPage({ params }: { params: Promise<{ jobId: stri
     }
   };
 
-  // Analytics calculations
-  const analytics = {
-    total: matchResults.length,
-    excellent: matchResults.filter((r) => (r.fitScore || r.similarity) >= 0.8).length,
-    good: matchResults.filter((r) => (r.fitScore || r.similarity) >= 0.6 && (r.fitScore || r.similarity) < 0.8).length,
-    fair: matchResults.filter((r) => (r.fitScore || r.similarity) >= 0.4 && (r.fitScore || r.similarity) < 0.6).length,
-    poor: matchResults.filter((r) => (r.fitScore || r.similarity) < 0.4).length,
-    averageScore:
-      matchResults.length > 0
-        ? matchResults.reduce((sum, r) => sum + (r.fitScore || r.similarity), 0) / matchResults.length
-        : 0,
-  };
-
-  const sortedAndFilteredResults = filterResults(sortResults(matchResults, sortOption), filterOption);
+  // Results are now sorted and filtered on the backend
 
   if (loading) {
     return (
@@ -504,7 +486,7 @@ export default function MatchingPage({ params }: { params: Promise<{ jobId: stri
                 )}
               </div>
             </div>
-            {resumes.length > 0 && (
+            {pagination.totalItems > 0 && (
               <Button onClick={runMatching} disabled={matching} className="bg-blue-600 hover:bg-blue-700">
                 {matching ? "Analyzing..." : "Run New Analysis"}
               </Button>
@@ -513,7 +495,7 @@ export default function MatchingPage({ params }: { params: Promise<{ jobId: stri
         </div>
 
         {/* Analytics Overview */}
-        {matchResults.length > 0 && (
+        {hasAnyResults && (
           <div className="grid grid-cols-1 md:grid-cols-5 gap-4 mb-6">
             <Card>
               <CardContent className="pt-6">
@@ -581,16 +563,23 @@ export default function MatchingPage({ params }: { params: Promise<{ jobId: stri
                 <CardTitle>Candidate Analysis Results</CardTitle>
                 <CardDescription>Advanced sorting, filtering, and comparison tools</CardDescription>
               </div>
-              {matchResults.length > 0 && (
-                <Badge variant="outline" className="text-xs">
-                  Showing {sortedAndFilteredResults.length} of {matchResults.length} candidates
-                </Badge>
-              )}
             </div>
 
             {/* Advanced Controls */}
-            {matchResults.length > 0 && (
+            {hasAnyResults && (
               <div className="flex flex-wrap items-center gap-4 pt-4 border-t">
+                {/* Search */}
+                <div className="flex items-center gap-2">
+                  <SearchIcon className="h-4 w-4 text-slate-400" />
+                  <input
+                    type="text"
+                    placeholder="Search candidates..."
+                    value={search}
+                    onChange={(e) => setSearch(e.target.value)}
+                    className="px-3 py-1 border rounded-md text-sm w-48"
+                  />
+                </div>
+
                 {/* Sort */}
                 <div className="flex items-center gap-2">
                   <ArrowUpDownIcon className="h-4 w-4 text-slate-500" />
@@ -669,13 +658,43 @@ export default function MatchingPage({ params }: { params: Promise<{ jobId: stri
           </CardHeader>
 
           <CardContent>
-            {resumes.length === 0 ? (
+            {pagination.totalItems === 0 && !matching ? (
               <div className="text-center py-8">
                 <UserIcon className="h-12 w-12 text-slate-400 mx-auto mb-4" />
-                <p className="text-slate-600 dark:text-slate-400">No resumes uploaded for this job yet</p>
-                <Link href={`/jobs/${jobId}`}>
-                  <Button className="mt-4">Upload Resumes</Button>
-                </Link>
+                {!hasAnyResults ? (
+                  <>
+                    <p className="text-slate-600 dark:text-slate-400">No analysis results available yet</p>
+                    <Link href={`/jobs/${jobId}`}>
+                      <Button className="mt-4">Go to Job Details</Button>
+                    </Link>
+                  </>
+                ) : (
+                  <>
+                    <p className="text-slate-600 dark:text-slate-400">
+                      No candidates found matching the current filters
+                    </p>
+                    <p className="text-sm text-slate-500 dark:text-slate-500 mt-2">
+                      {analytics.total} total candidate{analytics.total !== 1 ? "s" : ""} available
+                      {(search || filterOption !== "all") && " • Try adjusting your search or filter settings"}
+                    </p>
+                    <div className="flex gap-2 mt-4">
+                      <Button
+                        variant="outline"
+                        onClick={() => {
+                          setSearch("");
+                          setFilterOption("all");
+                        }}
+                      >
+                        Clear Filters
+                      </Button>
+                      {filterOption !== "all" && (
+                        <Button variant="outline" onClick={() => setFilterOption("all")}>
+                          Show All ({analytics.total})
+                        </Button>
+                      )}
+                    </div>
+                  </>
+                )}
               </div>
             ) : matching ? (
               <div className="text-center py-8">
@@ -699,7 +718,7 @@ export default function MatchingPage({ params }: { params: Promise<{ jobId: stri
                         </tr>
                       </thead>
                       <tbody>
-                        {sortedAndFilteredResults.map((result, index) => {
+                        {matchResults.map((result, index) => {
                           const fitScore = result.fitScore !== undefined ? result.fitScore : result.similarity;
                           return (
                             <tr key={result.resumeId} className="border-b hover:bg-slate-50">
@@ -774,11 +793,7 @@ export default function MatchingPage({ params }: { params: Promise<{ jobId: stri
                 ) : (
                   /* Card View */
                   <div className="space-y-4">
-                    <div className="flex items-center gap-2 mb-4">
-                      <CheckCircleIcon className="h-5 w-5 text-green-500" />
-                      <span className="text-sm font-medium">Showing {sortedAndFilteredResults.length} results</span>
-                    </div>
-                    {sortedAndFilteredResults.map((result, index) => {
+                    {matchResults.map((result, index) => {
                       const matchingExpanded = expandedMatching[result.resumeId];
                       const missingExpanded = expandedMissing[result.resumeId];
                       const fitScore = result.fitScore !== undefined ? result.fitScore : result.similarity;
@@ -884,6 +899,16 @@ export default function MatchingPage({ params }: { params: Promise<{ jobId: stri
                     })}
                   </div>
                 )}
+
+                {/* Pagination */}
+                <div className="mt-6 pt-4 border-t">
+                  <Pagination
+                    pagination={pagination}
+                    onPageChange={handlePageChange}
+                    onPageSizeChange={handlePageSizeChange}
+                    showPageSizeSelector={true}
+                  />
+                </div>
               </div>
             ) : (
               <div className="text-center py-8">

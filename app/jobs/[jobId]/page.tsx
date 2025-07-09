@@ -26,7 +26,9 @@ import {
   BarChart3Icon,
   ArrowRightIcon,
   PencilIcon,
+  SearchIcon,
 } from "lucide-react";
+import { Pagination } from "@/components/ui/pagination";
 
 interface Job {
   id: number;
@@ -98,20 +100,108 @@ export default function JobDetailPage({ params }: { params: Promise<{ jobId: str
   const [isEditJobOpen, setIsEditJobOpen] = useState(false);
   const [editJobData, setEditJobData] = useState({ title: "", jdText: "" });
   const [isUpdatingJob, setIsUpdatingJob] = useState(false);
+  const [search, setSearch] = useState("");
+  const [pageSize, setPageSize] = useState(10);
+  const [currentPage, setCurrentPage] = useState(1);
+  const [statusFilter, setStatusFilter] = useState<"all" | "matched" | "unmatched">("all");
+  const [pagination, setPagination] = useState({
+    currentPage: 1,
+    totalPages: 1,
+    totalItems: 0,
+    itemsPerPage: 10,
+    hasNextPage: false,
+    hasPreviousPage: false,
+  });
+  const [hasAnyResumes, setHasAnyResumes] = useState(false);
 
   useEffect(() => {
     if (jobId) {
       fetchJobDetails();
-      fetchResumes();
     }
   }, [jobId]);
 
-  // Fetch existing comparisons and update resume status
+  // Handle page size changes
+  const handlePageSizeChange = (newPageSize: number) => {
+    setPageSize(newPageSize);
+    setCurrentPage(1); // Reset to first page when changing page size
+
+    // Immediately fetch with the new parameters to avoid state sync issues
+    if (jobId) {
+      fetchResumesWithParams(1, newPageSize, sortOption, search, statusFilter);
+    }
+  };
+
+  // Handle page changes
+  const handlePageChange = (newPage: number) => {
+    setCurrentPage(newPage);
+
+    // Immediately fetch with the new page to avoid state sync issues
+    if (jobId) {
+      fetchResumesWithParams(newPage, pageSize, sortOption, search, statusFilter);
+    }
+  };
+
+  // Separate function to fetch with specific parameters
+  const fetchResumesWithParams = async (
+    page: number,
+    limit: number,
+    sort: SortOption,
+    searchTerm: string,
+    status: string
+  ) => {
+    try {
+      const params = new URLSearchParams({
+        page: page.toString(),
+        limit: limit.toString(),
+        sortBy: sort.includes("fit")
+          ? "fit"
+          : sort.includes("similarity")
+          ? "similarity"
+          : sort.includes("name")
+          ? "candidate"
+          : "createdAt",
+        sortOrder: sort.includes("desc") ? "desc" : "asc",
+        ...(searchTerm && { search: searchTerm }),
+        ...(status !== "all" && { status }),
+      });
+
+      const response = await fetch(`/api/jobs/${jobId}/resumes?${params}`);
+      if (response.ok) {
+        const data = await response.json();
+        setResumes(
+          data.data.map((resume: { id: number; candidate: string; when: string }) => ({
+            id: resume.id,
+            candidate: resume.candidate,
+            when: resume.when,
+          }))
+        );
+        setResumesWithStatus(data.data);
+        setPagination(data.pagination);
+
+        // Track if there are any resumes at all for this job (check unfiltered)
+        if (!searchTerm && status === "all") {
+          setHasAnyResumes(data.pagination.totalItems > 0);
+        } else if (data.pagination.totalItems > 0) {
+          setHasAnyResumes(true);
+        } else if ((searchTerm || status !== "all") && data.pagination.totalItems === 0) {
+          const unfiltered = await fetch(`/api/jobs/${jobId}/resumes?limit=1`);
+          if (unfiltered.ok) {
+            const unfilteredData = await unfiltered.json();
+            setHasAnyResumes(unfilteredData.pagination.totalItems > 0);
+          }
+        }
+      }
+    } catch (error) {
+      console.error("Error fetching resumes:", error);
+    }
+  };
+
   useEffect(() => {
-    if (resumes.length > 0) {
+    if (jobId) {
+      fetchResumes();
       fetchExistingComparisons();
     }
-  }, [resumes]);
+  }, [jobId, currentPage, pageSize, sortOption, search, statusFilter]);
 
   const fetchJobDetails = async () => {
     try {
@@ -128,10 +218,52 @@ export default function JobDetailPage({ params }: { params: Promise<{ jobId: str
 
   const fetchResumes = async () => {
     try {
-      const response = await fetch(`/api/jobs/${jobId}/resumes`);
+      const params = new URLSearchParams({
+        page: currentPage.toString(),
+        limit: pageSize.toString(),
+        sortBy: sortOption.includes("fit")
+          ? "fit"
+          : sortOption.includes("similarity")
+          ? "similarity"
+          : sortOption.includes("name")
+          ? "candidate"
+          : "createdAt",
+        sortOrder: sortOption.includes("desc") ? "desc" : "asc",
+        ...(search && { search }),
+        ...(statusFilter !== "all" && { status: statusFilter }),
+      });
+
+      const response = await fetch(`/api/jobs/${jobId}/resumes?${params}`);
       if (response.ok) {
         const data = await response.json();
-        setResumes(data);
+        setResumes(
+          data.data.map((resume: { id: number; candidate: string; when: string }) => ({
+            id: resume.id,
+            candidate: resume.candidate,
+            when: resume.when,
+          }))
+        );
+        setResumesWithStatus(data.data);
+        setPagination(data.pagination);
+
+        // Track if there are any resumes at all for this job (check unfiltered)
+        // If no filters are applied, use the current total
+        // If filters are applied and result is 0, we need to check unfiltered count
+        if (!search && statusFilter === "all") {
+          setHasAnyResumes(data.pagination.totalItems > 0);
+        } else if (data.pagination.totalItems > 0) {
+          // If we have filtered results, we definitely have resumes
+          setHasAnyResumes(true);
+        }
+        // If we have filters and 0 results, we need a separate call to check unfiltered total
+        else if ((search || statusFilter !== "all") && data.pagination.totalItems === 0) {
+          // Check unfiltered count
+          const unfiltered = await fetch(`/api/jobs/${jobId}/resumes?limit=1`);
+          if (unfiltered.ok) {
+            const unfilteredData = await unfiltered.json();
+            setHasAnyResumes(unfilteredData.pagination.totalItems > 0);
+          }
+        }
       }
     } catch (error) {
       console.error("Error fetching resumes:", error);
@@ -140,9 +272,11 @@ export default function JobDetailPage({ params }: { params: Promise<{ jobId: str
 
   const fetchExistingComparisons = async () => {
     try {
-      const response = await fetch(`/api/jobs/${jobId}/comparisons`);
+      // Get all comparisons (using a large limit to get everything for this overview)
+      const response = await fetch(`/api/jobs/${jobId}/comparisons?limit=1000`);
       if (response.ok) {
-        const comparisons = await response.json();
+        const responseData = await response.json();
+        const comparisons = responseData.data || []; // Handle new paginated response structure
 
         // Create a map of resumeId to comparison
         const comparisonMap = new Map<number, ComparisonFromAPI>(
@@ -324,7 +458,6 @@ export default function JobDetailPage({ params }: { params: Promise<{ jobId: str
   };
 
   const selectedResumes = resumesWithStatus.filter((resume) => resume.selected);
-  const hasResumes = resumesWithStatus.length > 0;
   const hasSelectedResumes = selectedResumes.length > 0;
   const allSelected = resumesWithStatus.length > 0 && resumesWithStatus.every((resume) => resume.selected);
   const hasMatchedResumes = resumesWithStatus.some((resume) => resume.isMatched);
@@ -527,7 +660,7 @@ export default function JobDetailPage({ params }: { params: Promise<{ jobId: str
               <h1 className="text-3xl font-bold text-slate-900 dark:text-slate-100 mb-2">{job.title}</h1>
               <div className="flex items-center gap-4 text-sm text-slate-600 dark:text-slate-400">
                 <span>Created {formatDate(job.createdAt)}</span>
-                {hasResumes && (
+                {hasAnyResumes && (
                   <>
                     <span>•</span>
                     <span>
@@ -841,12 +974,12 @@ export default function JobDetailPage({ params }: { params: Promise<{ jobId: str
             {/* Candidate Management */}
             <Card>
               <CardHeader>
-                <div className="flex items-center justify-between">
+                <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
                   <div>
                     <CardTitle>Candidate Management ({resumes.length})</CardTitle>
                     <CardDescription>Upload, organize, and manage candidate resumes</CardDescription>
                   </div>
-                  <div className="flex gap-2">
+                  <div className="flex flex-col sm:flex-row gap-2">
                     {resumes.length > 0 && (
                       <Button
                         onClick={() => runMatching()}
@@ -906,10 +1039,70 @@ export default function JobDetailPage({ params }: { params: Promise<{ jobId: str
                 </div>
 
                 {/* Management Controls */}
-                {hasResumes && (
-                  <div className="flex flex-wrap items-center gap-3 pt-4 border-t">
+                {hasAnyResumes && (
+                  <div className="space-y-4 pt-4 border-t">
+                    {/* Search and Filter Controls */}
+                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+                      {/* Search */}
+                      <div className="flex items-center gap-2">
+                        <SearchIcon className="h-4 w-4 text-slate-400 flex-shrink-0" />
+                        <input
+                          type="text"
+                          placeholder="Search candidates..."
+                          value={search}
+                          onChange={(e) => setSearch(e.target.value)}
+                          className="px-3 py-1 border rounded-md text-sm flex-1 min-w-0"
+                        />
+                      </div>
+
+                      {/* Status Filter */}
+                      <div className="flex items-center gap-2">
+                        <span className="text-sm text-slate-600 flex-shrink-0">Status:</span>
+                        <Select
+                          value={statusFilter}
+                          onValueChange={(value: "all" | "matched" | "unmatched") => setStatusFilter(value)}
+                        >
+                          <SelectTrigger className="flex-1 min-w-0">
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="all">All</SelectItem>
+                            <SelectItem value="matched">Matched</SelectItem>
+                            <SelectItem value="unmatched">Unmatched</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      </div>
+
+                      {/* Sort Controls */}
+                      <div className="flex items-center gap-2 sm:col-span-2 lg:col-span-1">
+                        <ArrowUpDownIcon className="h-4 w-4 text-slate-500 flex-shrink-0" />
+                        <Label htmlFor="sort-select" className="text-sm font-medium flex-shrink-0">
+                          Sort:
+                        </Label>
+                        <Select value={sortOption} onValueChange={(value: SortOption) => setSortOption(value)}>
+                          <SelectTrigger className="flex-1 min-w-0" id="sort-select">
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {hasMatchedResumes && (
+                              <>
+                                <SelectItem value="fit-desc">Fit Score (High to Low)</SelectItem>
+                                <SelectItem value="fit-asc">Fit Score (Low to High)</SelectItem>
+                                <SelectItem value="similarity-desc">Similarity (High to Low)</SelectItem>
+                                <SelectItem value="similarity-asc">Similarity (Low to High)</SelectItem>
+                              </>
+                            )}
+                            <SelectItem value="name-asc">Name (A to Z)</SelectItem>
+                            <SelectItem value="name-desc">Name (Z to A)</SelectItem>
+                            <SelectItem value="date-desc">Upload Date (Newest First)</SelectItem>
+                            <SelectItem value="date-asc">Upload Date (Oldest First)</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      </div>
+                    </div>
+
                     {/* Bulk Actions */}
-                    <div className="flex items-center gap-2">
+                    <div className="flex flex-col sm:flex-row items-start sm:items-center gap-2">
                       <Button
                         variant="outline"
                         size="sm"
@@ -933,45 +1126,47 @@ export default function JobDetailPage({ params }: { params: Promise<{ jobId: str
                         </Button>
                       )}
                     </div>
-
-                    {/* Sort Controls */}
-                    <div className="flex items-center gap-2 ml-auto">
-                      <ArrowUpDownIcon className="h-4 w-4 text-slate-500" />
-                      <Label htmlFor="sort-select" className="text-sm font-medium">
-                        Sort:
-                      </Label>
-                      <Select value={sortOption} onValueChange={(value: SortOption) => setSortOption(value)}>
-                        <SelectTrigger className="w-48" id="sort-select">
-                          <SelectValue />
-                        </SelectTrigger>
-                        <SelectContent>
-                          {hasMatchedResumes && (
-                            <>
-                              <SelectItem value="fit-desc">Fit Score (High to Low)</SelectItem>
-                              <SelectItem value="fit-asc">Fit Score (Low to High)</SelectItem>
-                              <SelectItem value="similarity-desc">Similarity (High to Low)</SelectItem>
-                              <SelectItem value="similarity-asc">Similarity (Low to High)</SelectItem>
-                            </>
-                          )}
-                          <SelectItem value="name-asc">Name (A to Z)</SelectItem>
-                          <SelectItem value="name-desc">Name (Z to A)</SelectItem>
-                          <SelectItem value="date-desc">Upload Date (Newest First)</SelectItem>
-                          <SelectItem value="date-asc">Upload Date (Oldest First)</SelectItem>
-                        </SelectContent>
-                      </Select>
-                    </div>
                   </div>
                 )}
               </CardHeader>
 
               <CardContent>
-                {resumes.length === 0 ? (
+                {pagination.totalItems === 0 ? (
                   <div className="text-center py-12">
                     <UserIcon className="h-16 w-16 text-slate-300 mx-auto mb-4" />
-                    <h3 className="text-lg font-medium text-slate-900 dark:text-slate-100 mb-2">No candidates yet</h3>
-                    <p className="text-slate-600 dark:text-slate-400 mb-6">
-                      Upload your first resume to get started with AI matching
-                    </p>
+                    {!hasAnyResumes ? (
+                      <>
+                        <h3 className="text-lg font-medium text-slate-900 dark:text-slate-100 mb-2">
+                          No candidates yet
+                        </h3>
+                        <p className="text-slate-600 dark:text-slate-400 mb-6">
+                          Upload your first resume to get started with AI matching
+                        </p>
+                      </>
+                    ) : (
+                      <>
+                        <h3 className="text-lg font-medium text-slate-900 dark:text-slate-100 mb-2">
+                          No candidates found matching the current filters
+                        </h3>
+                        <p className="text-slate-600 dark:text-slate-400 mb-4">
+                          Try adjusting your search or filter settings
+                        </p>
+                        <div className="flex gap-2 justify-center">
+                          <Button
+                            variant="outline"
+                            onClick={() => {
+                              setSearch("");
+                              setStatusFilter("all");
+                            }}
+                          >
+                            Clear Filters
+                          </Button>
+                          <Button variant="outline" onClick={() => setStatusFilter("all")}>
+                            Show All
+                          </Button>
+                        </div>
+                      </>
+                    )}
                   </div>
                 ) : (
                   <div className="space-y-3">
@@ -1054,6 +1249,16 @@ export default function JobDetailPage({ params }: { params: Promise<{ jobId: str
                         </div>
                       </div>
                     ))}
+
+                    {/* Pagination */}
+                    <div className="mt-6 pt-4 border-t">
+                      <Pagination
+                        pagination={pagination}
+                        onPageChange={handlePageChange}
+                        onPageSizeChange={handlePageSizeChange}
+                        showPageSizeSelector={true}
+                      />
+                    </div>
                   </div>
                 )}
               </CardContent>
