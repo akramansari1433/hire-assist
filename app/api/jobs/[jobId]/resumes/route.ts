@@ -1,7 +1,7 @@
 // /app/api/jobs/[jobId]/resumes/route.ts
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/db";
-import { resumes, resumeChunks } from "@/lib/db";
+import { resumes } from "@/lib/db";
 import { chunk } from "@/lib/chunk";
 import { embed } from "@/lib/embeddings";
 import { upsertVectors } from "@/lib/pinecone";
@@ -59,21 +59,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ job
     );
     console.log("✅ Embedding complete, created", vectors.length, "vectors");
 
-    // 3️⃣ store chunks
-    console.log("💾 Storing chunks in database...");
-    await db.transaction(async (tx) => {
-      for (let i = 0; i < pieces.length; i++) {
-        await tx.insert(resumeChunks).values({
-          resumeId: resume.id,
-          chunkIndex: i,
-          chunkText: pieces[i],
-          embedding: vectors[i],
-        });
-      }
-    });
-    console.log("✅ Database chunks stored successfully");
-
-    // 4️⃣ upsert to Pinecone
+    // 3️⃣ upsert to Pinecone
     console.log("🔍 Preparing vectors for Pinecone...");
     const pineconeVectors = vectors.map((v, i) => ({
       id: `res-${resume.id}-${i}`,

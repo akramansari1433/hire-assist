@@ -21,15 +21,24 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ job
   }
 
   try {
-    // fetch JD embedding
+    // fetch job text and embedding from Pinecone
     const [job] = await db
-      .select({ emb: jobs.jdEmbedding, text: jobs.jdText })
+      .select({ text: jobs.jdText })
       .from(jobs)
       .where(eq(jobs.id, Number(jobId)));
 
-    if (!job?.emb) {
-      console.error("❌ Job not found or no embedding");
-      return NextResponse.json({ error: "Job not found or no embedding" }, { status: 404 });
+    if (!job) {
+      console.error("❌ Job not found");
+      return NextResponse.json({ error: "Job not found" }, { status: 404 });
+    }
+
+    // fetch job embedding from Pinecone
+    const jobEmbeddingResp = await index.namespace("jobs").fetch([`job-${jobId}`]);
+    const jobVector = jobEmbeddingResp.records[`job-${jobId}`]?.values;
+
+    if (!jobVector) {
+      console.error("❌ Job embedding not found in Pinecone");
+      return NextResponse.json({ error: "Job embedding not found" }, { status: 404 });
     }
 
     // Check if we have resumes for this job
@@ -44,7 +53,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ job
 
     // vector query
     const resp = await index.namespace("resumes").query({
-      vector: job.emb,
+      vector: jobVector,
       topK,
       filter: { jobId: Number(jobId) },
       includeMetadata: true,

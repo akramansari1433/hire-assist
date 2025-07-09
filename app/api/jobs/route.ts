@@ -34,7 +34,6 @@ export async function POST(req: NextRequest) {
       .values({
         title,
         jdText,
-        jdEmbedding: vector,
       })
       .returning({ id: jobs.id });
     console.log("✅ Job stored with ID:", job.id);
