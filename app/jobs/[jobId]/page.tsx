@@ -68,6 +68,8 @@ export default function JobDetailPage({ params }: { params: Promise<{ jobId: str
   const [isUploadDialogOpen, setIsUploadDialogOpen] = useState(false);
   const [matching, setMatching] = useState(false);
   const [matchResults, setMatchResults] = useState<MatchResult[]>([]);
+  const [expandedMatching, setExpandedMatching] = useState<{ [key: number]: boolean }>({});
+  const [expandedMissing, setExpandedMissing] = useState<{ [key: number]: boolean }>({});
 
   useEffect(() => {
     if (jobId) {
@@ -266,6 +268,14 @@ export default function JobDetailPage({ params }: { params: Promise<{ jobId: str
     if (score >= 0.8) return "bg-green-100 text-green-800 border-green-200";
     if (score >= 0.6) return "bg-yellow-100 text-yellow-800 border-yellow-200";
     return "bg-red-100 text-red-800 border-red-200";
+  };
+
+  const toggleMatchingSkills = (resumeId: number) => {
+    setExpandedMatching((prev) => ({ ...prev, [resumeId]: !prev[resumeId] }));
+  };
+
+  const toggleMissingSkills = (resumeId: number) => {
+    setExpandedMissing((prev) => ({ ...prev, [resumeId]: !prev[resumeId] }));
   };
 
   if (loading) {
@@ -505,7 +515,10 @@ export default function JobDetailPage({ params }: { params: Promise<{ jobId: str
                                 ✅ Matching Skills ({result.matching_skills.length})
                               </h5>
                               <div className="flex flex-wrap gap-1">
-                                {result.matching_skills.slice(0, 6).map((skill, index) => (
+                                {(expandedMatching[result.resumeId]
+                                  ? result.matching_skills
+                                  : result.matching_skills.slice(0, 6)
+                                ).map((skill, index) => (
                                   <Badge
                                     key={index}
                                     variant="secondary"
@@ -515,9 +528,14 @@ export default function JobDetailPage({ params }: { params: Promise<{ jobId: str
                                   </Badge>
                                 ))}
                                 {result.matching_skills.length > 6 && (
-                                  <Badge variant="secondary" className="bg-green-100 text-green-800 text-xs">
-                                    +{result.matching_skills.length - 6} more
-                                  </Badge>
+                                  <button
+                                    onClick={() => toggleMatchingSkills(result.resumeId)}
+                                    className="inline-flex items-center px-2 py-1 text-xs font-medium text-green-800 bg-green-100 border border-green-200 rounded-md hover:bg-green-200 transition-colors"
+                                  >
+                                    {expandedMatching[result.resumeId]
+                                      ? "Show less"
+                                      : `+${result.matching_skills.length - 6} more`}
+                                  </button>
                                 )}
                               </div>
                             </div>
@@ -530,7 +548,10 @@ export default function JobDetailPage({ params }: { params: Promise<{ jobId: str
                                 ⚠️ Missing Skills ({result.missing_skills.length})
                               </h5>
                               <div className="flex flex-wrap gap-1">
-                                {result.missing_skills.slice(0, 6).map((skill, index) => (
+                                {(expandedMissing[result.resumeId]
+                                  ? result.missing_skills
+                                  : result.missing_skills.slice(0, 6)
+                                ).map((skill, index) => (
                                   <Badge
                                     key={index}
                                     variant="secondary"
@@ -540,9 +561,14 @@ export default function JobDetailPage({ params }: { params: Promise<{ jobId: str
                                   </Badge>
                                 ))}
                                 {result.missing_skills.length > 6 && (
-                                  <Badge variant="secondary" className="bg-orange-100 text-orange-800 text-xs">
-                                    +{result.missing_skills.length - 6} more
-                                  </Badge>
+                                  <button
+                                    onClick={() => toggleMissingSkills(result.resumeId)}
+                                    className="inline-flex items-center px-2 py-1 text-xs font-medium text-orange-800 bg-orange-100 border border-orange-200 rounded-md hover:bg-orange-200 transition-colors"
+                                  >
+                                    {expandedMissing[result.resumeId]
+                                      ? "Show less"
+                                      : `+${result.missing_skills.length - 6} more`}
+                                  </button>
                                 )}
                               </div>
                             </div>

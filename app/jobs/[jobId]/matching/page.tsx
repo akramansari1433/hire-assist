@@ -47,6 +47,8 @@ export default function MatchingPage({ params }: { params: Promise<{ jobId: stri
   const [matching, setMatching] = useState(false);
   const [matchResults, setMatchResults] = useState<MatchResult[]>([]);
   const [loading, setLoading] = useState(true);
+  const [expandedMatching, setExpandedMatching] = useState<{ [key: number]: boolean }>({});
+  const [expandedMissing, setExpandedMissing] = useState<{ [key: number]: boolean }>({});
 
   useEffect(() => {
     if (jobId) {
@@ -165,6 +167,14 @@ export default function MatchingPage({ params }: { params: Promise<{ jobId: stri
     return "bg-red-100 text-red-800 border-red-200";
   };
 
+  const toggleMatchingSkills = (resumeId: number) => {
+    setExpandedMatching((prev) => ({ ...prev, [resumeId]: !prev[resumeId] }));
+  };
+
+  const toggleMissingSkills = (resumeId: number) => {
+    setExpandedMissing((prev) => ({ ...prev, [resumeId]: !prev[resumeId] }));
+  };
+
   if (loading) {
     return (
       <div className="min-h-screen bg-gradient-to-br from-slate-50 to-slate-100 dark:from-slate-900 dark:to-slate-800">
@@ -258,72 +268,91 @@ export default function MatchingPage({ params }: { params: Promise<{ jobId: stri
                   <CheckCircleIcon className="h-5 w-5 text-green-500" />
                   <span className="text-sm font-medium">Found {matchResults.length} matches</span>
                 </div>
-                {matchResults.map((result) => (
-                  <div key={result.resumeId} className="p-4 bg-slate-50 dark:bg-slate-800 rounded-lg">
-                    <div className="flex items-center justify-between mb-3">
-                      <h4 className="font-medium">{result.candidateName}</h4>
-                      <div className="flex gap-2">
-                        <Badge variant="outline" className="text-xs">
-                          Sim: {(result.similarity * 100).toFixed(1)}%
-                        </Badge>
-                        <Badge
-                          className={getScoreBadgeColor(
-                            result.fitScore !== undefined ? result.fitScore : result.similarity
-                          )}
-                        >
-                          Fit:{" "}
-                          {((result.fitScore !== undefined ? result.fitScore : result.similarity) * 100).toFixed(1)}%
-                        </Badge>
+                {matchResults.map((result) => {
+                  const matchingExpanded = expandedMatching[result.resumeId];
+                  const missingExpanded = expandedMissing[result.resumeId];
+
+                  return (
+                    <div key={result.resumeId} className="p-4 bg-slate-50 dark:bg-slate-800 rounded-lg">
+                      <div className="flex items-center justify-between mb-3">
+                        <h4 className="font-medium">{result.candidateName}</h4>
+                        <div className="flex gap-2">
+                          <Badge variant="outline" className="text-xs">
+                            Sim: {(result.similarity * 100).toFixed(1)}%
+                          </Badge>
+                          <Badge
+                            className={getScoreBadgeColor(
+                              result.fitScore !== undefined ? result.fitScore : result.similarity
+                            )}
+                          >
+                            Fit:{" "}
+                            {((result.fitScore !== undefined ? result.fitScore : result.similarity) * 100).toFixed(1)}%
+                          </Badge>
+                        </div>
                       </div>
+
+                      <p className="text-sm text-slate-600 dark:text-slate-400 mb-3">
+                        {result.summary || "Analysis completed"}
+                      </p>
+
+                      {/* Matching Skills */}
+                      {result.matching_skills && result.matching_skills.length > 0 && (
+                        <div className="mb-3">
+                          <h5 className="text-xs font-medium text-green-700 dark:text-green-400 mb-1">
+                            ✅ Matching Skills ({result.matching_skills.length})
+                          </h5>
+                          <div className="flex flex-wrap gap-1">
+                            {(matchingExpanded ? result.matching_skills : result.matching_skills.slice(0, 6)).map(
+                              (skill, index) => (
+                                <Badge key={index} variant="secondary" className="bg-green-100 text-green-800 text-xs">
+                                  {skill}
+                                </Badge>
+                              )
+                            )}
+                            {result.matching_skills.length > 6 && (
+                              <button
+                                onClick={() => toggleMatchingSkills(result.resumeId)}
+                                className="inline-flex items-center px-2 py-1 text-xs font-medium text-green-800 bg-green-100 border border-green-200 rounded-md hover:bg-green-200 transition-colors"
+                              >
+                                {matchingExpanded ? "Show less" : `+${result.matching_skills.length - 6} more`}
+                              </button>
+                            )}
+                          </div>
+                        </div>
+                      )}
+
+                      {/* Missing Skills */}
+                      {result.missing_skills && result.missing_skills.length > 0 && (
+                        <div>
+                          <h5 className="text-xs font-medium text-orange-700 dark:text-orange-400 mb-1">
+                            ⚠️ Missing Skills ({result.missing_skills.length})
+                          </h5>
+                          <div className="flex flex-wrap gap-1">
+                            {(missingExpanded ? result.missing_skills : result.missing_skills.slice(0, 6)).map(
+                              (skill, index) => (
+                                <Badge
+                                  key={index}
+                                  variant="secondary"
+                                  className="bg-orange-100 text-orange-800 text-xs"
+                                >
+                                  {skill}
+                                </Badge>
+                              )
+                            )}
+                            {result.missing_skills.length > 6 && (
+                              <button
+                                onClick={() => toggleMissingSkills(result.resumeId)}
+                                className="inline-flex items-center px-2 py-1 text-xs font-medium text-orange-800 bg-orange-100 border border-orange-200 rounded-md hover:bg-orange-200 transition-colors"
+                              >
+                                {missingExpanded ? "Show less" : `+${result.missing_skills.length - 6} more`}
+                              </button>
+                            )}
+                          </div>
+                        </div>
+                      )}
                     </div>
-
-                    <p className="text-sm text-slate-600 dark:text-slate-400 mb-3">
-                      {result.summary || "Analysis completed"}
-                    </p>
-
-                    {/* Matching Skills */}
-                    {result.matching_skills && result.matching_skills.length > 0 && (
-                      <div className="mb-3">
-                        <h5 className="text-xs font-medium text-green-700 dark:text-green-400 mb-1">
-                          ✅ Matching Skills ({result.matching_skills.length})
-                        </h5>
-                        <div className="flex flex-wrap gap-1">
-                          {result.matching_skills.slice(0, 6).map((skill, index) => (
-                            <Badge key={index} variant="secondary" className="bg-green-100 text-green-800 text-xs">
-                              {skill}
-                            </Badge>
-                          ))}
-                          {result.matching_skills.length > 6 && (
-                            <Badge variant="secondary" className="bg-green-100 text-green-800 text-xs">
-                              +{result.matching_skills.length - 6} more
-                            </Badge>
-                          )}
-                        </div>
-                      </div>
-                    )}
-
-                    {/* Missing Skills */}
-                    {result.missing_skills && result.missing_skills.length > 0 && (
-                      <div>
-                        <h5 className="text-xs font-medium text-orange-700 dark:text-orange-400 mb-1">
-                          ⚠️ Missing Skills ({result.missing_skills.length})
-                        </h5>
-                        <div className="flex flex-wrap gap-1">
-                          {result.missing_skills.slice(0, 6).map((skill, index) => (
-                            <Badge key={index} variant="secondary" className="bg-orange-100 text-orange-800 text-xs">
-                              {skill}
-                            </Badge>
-                          ))}
-                          {result.missing_skills.length > 6 && (
-                            <Badge variant="secondary" className="bg-orange-100 text-orange-800 text-xs">
-                              +{result.missing_skills.length - 6} more
-                            </Badge>
-                          )}
-                        </div>
-                      </div>
-                    )}
-                  </div>
-                ))}
+                  );
+                })}
               </div>
             ) : (
               <div className="text-center py-8">
