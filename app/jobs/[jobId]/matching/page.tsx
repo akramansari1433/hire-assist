@@ -505,7 +505,7 @@ export default function MatchingPage({ params }: { params: Promise<{ jobId: stri
               </div>
             </div>
             {resumes.length > 0 && (
-              <Button onClick={runMatching} disabled={matching} className="bg-green-600 hover:bg-green-700">
+              <Button onClick={runMatching} disabled={matching} className="bg-blue-600 hover:bg-blue-700">
                 {matching ? "Analyzing..." : "Run New Analysis"}
               </Button>
             )}

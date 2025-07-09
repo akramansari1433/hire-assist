@@ -139,7 +139,7 @@ export default function JobsPage() {
 
           <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
             <DialogTrigger asChild>
-              <Button className="bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700">
+              <Button className="bg-blue-600 hover:bg-blue-700">
                 <PlusIcon className="h-4 w-4 mr-2" />
                 Create Job
               </Button>
@@ -296,7 +296,7 @@ export default function JobsPage() {
                           </Button>
                         </Link>
                         <Link href={`/jobs/${job.id}/matching`}>
-                          <Button size="sm">
+                          <Button size="sm" className="bg-green-600 hover:bg-green-700">
                             Start Matching
                             <ArrowRightIcon className="h-4 w-4 ml-2" />
                           </Button>

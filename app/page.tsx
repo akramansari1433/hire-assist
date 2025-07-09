@@ -11,7 +11,7 @@ export default function HomePage() {
         <div className="container mx-auto px-4">
           <div className="text-center max-w-4xl mx-auto">
             <div className="flex items-center justify-center mb-6">
-              <div className="bg-gradient-to-r from-blue-600 to-indigo-600 p-4 rounded-2xl">
+              <div className="bg-blue-600 p-4 rounded-2xl">
                 <BriefcaseIcon className="h-10 w-10 text-white" />
               </div>
             </div>
@@ -24,10 +24,7 @@ export default function HomePage() {
             </p>
 
             <Link href="/jobs">
-              <Button
-                size="lg"
-                className="bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white px-8 py-4 text-lg font-semibold"
-              >
+              <Button size="lg" className="bg-blue-600 hover:bg-blue-700 text-white px-8 py-4 text-lg font-semibold">
                 Get Started
                 <ArrowRightIcon className="ml-2 h-5 w-5" />
               </Button>
@@ -160,7 +157,7 @@ export default function HomePage() {
       </section>
 
       {/* CTA Section */}
-      <section className="py-20 bg-gradient-to-r from-blue-600 to-indigo-600">
+      <section className="py-20 bg-blue-600">
         <div className="container mx-auto px-4 text-center">
           <h2 className="text-3xl md:text-4xl font-bold text-white mb-4">Ready to Start Matching?</h2>
           <p className="text-lg text-blue-100 mb-8 max-w-2xl mx-auto">

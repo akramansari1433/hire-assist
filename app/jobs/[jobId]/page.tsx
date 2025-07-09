@@ -809,7 +809,7 @@ export default function JobDetailPage({ params }: { params: Promise<{ jobId: str
                     {/* Navigation to Full Analysis */}
                     <div className="pt-4 border-t">
                       <Link href={`/jobs/${jobId}/matching`}>
-                        <Button className="w-full bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700">
+                        <Button className="w-full bg-green-600 hover:bg-green-700">
                           <BarChart3Icon className="h-4 w-4 mr-2" />
                           View Detailed Analysis Dashboard
                           <ArrowRightIcon className="h-4 w-4 ml-2" />
@@ -828,7 +828,7 @@ export default function JobDetailPage({ params }: { params: Promise<{ jobId: str
                       <Button
                         onClick={() => runMatching(true)}
                         disabled={matching}
-                        className="bg-green-600 hover:bg-green-700"
+                        className="bg-blue-600 hover:bg-blue-700"
                       >
                         {matching ? "Analyzing..." : "Start Analysis"}
                       </Button>
@@ -852,8 +852,7 @@ export default function JobDetailPage({ params }: { params: Promise<{ jobId: str
                         onClick={() => runMatching()}
                         disabled={shouldDisableMatching()}
                         size="sm"
-                        variant="outline"
-                        className="border-blue-200 text-blue-700 hover:bg-blue-50"
+                        className="bg-blue-600 hover:bg-blue-700 text-white"
                       >
                         {matching ? "Analyzing..." : getMatchingButtonText()}
                       </Button>
