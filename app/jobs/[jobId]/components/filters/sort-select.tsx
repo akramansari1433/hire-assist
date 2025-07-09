@@ -6,10 +6,9 @@ import { SortOption } from "../../types";
 interface SortSelectProps {
   value: SortOption;
   onChange: (value: SortOption) => void;
-  hasMatchedResumes: boolean;
 }
 
-export function SortSelect({ value, onChange, hasMatchedResumes }: SortSelectProps) {
+export function SortSelect({ value, onChange }: SortSelectProps) {
   return (
     <div className="flex items-center gap-2 sm:col-span-2 lg:col-span-1">
       <ArrowUpDownIcon className="h-4 w-4 text-slate-500 flex-shrink-0" />
@@ -21,14 +20,10 @@ export function SortSelect({ value, onChange, hasMatchedResumes }: SortSelectPro
           <SelectValue />
         </SelectTrigger>
         <SelectContent>
-          {hasMatchedResumes && (
-            <>
-              <SelectItem value="fit-desc">Fit Score (High to Low)</SelectItem>
-              <SelectItem value="fit-asc">Fit Score (Low to High)</SelectItem>
-              <SelectItem value="similarity-desc">Similarity (High to Low)</SelectItem>
-              <SelectItem value="similarity-asc">Similarity (Low to High)</SelectItem>
-            </>
-          )}
+          <SelectItem value="fit-desc">Fit Score (High to Low)</SelectItem>
+          <SelectItem value="fit-asc">Fit Score (Low to High)</SelectItem>
+          <SelectItem value="similarity-desc">Similarity (High to Low)</SelectItem>
+          <SelectItem value="similarity-asc">Similarity (Low to High)</SelectItem>
           <SelectItem value="name-asc">Name (A to Z)</SelectItem>
           <SelectItem value="name-desc">Name (Z to A)</SelectItem>
           <SelectItem value="date-desc">Upload Date (Newest First)</SelectItem>

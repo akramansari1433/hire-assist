@@ -111,7 +111,7 @@ export function CandidateManagement({
               <StatusFilter value={statusFilter} onChange={onStatusFilterChange} />
 
               {/* Sort Controls */}
-              <SortSelect value={sortOption} onChange={onSortOptionChange} hasMatchedResumes={hasMatchedResumes} />
+              <SortSelect value={sortOption} onChange={onSortOptionChange} />
             </div>
 
             {/* Bulk Actions */}
