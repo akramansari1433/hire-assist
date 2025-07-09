@@ -430,16 +430,45 @@ export default function JobDetailPage({ params }: { params: Promise<{ jobId: str
     <div className="min-h-screen bg-gradient-to-br from-slate-50 to-slate-100 dark:from-slate-900 dark:to-slate-800">
       <div className="container mx-auto px-4 py-8">
         {/* Header */}
-        <div className="flex items-center gap-4 mb-6">
-          <Link href="/jobs">
-            <Button variant="outline" size="sm">
-              <ArrowLeftIcon className="h-4 w-4 mr-2" />
-              Back to Jobs
-            </Button>
-          </Link>
-          <div>
-            <h1 className="text-3xl font-bold text-slate-900 dark:text-slate-100">{job.title}</h1>
-            <p className="text-slate-600 dark:text-slate-400">Created {formatDate(job.createdAt)}</p>
+        <div className="mb-6">
+          {/* Navigation Breadcrumb */}
+          <div className="flex items-center gap-2 mb-4">
+            <Link href="/jobs" className="group">
+              <Button
+                variant="ghost"
+                size="sm"
+                className="h-8 px-3 text-slate-600 hover:text-slate-900 hover:bg-slate-100 transition-all duration-200"
+              >
+                <ArrowLeftIcon className="h-4 w-4 mr-2 transition-transform group-hover:-translate-x-0.5" />
+                Jobs
+              </Button>
+            </Link>
+            <span className="text-slate-400">/</span>
+            <span className="text-sm font-medium text-slate-700">Job Details</span>
+          </div>
+
+          {/* Title Section */}
+          <div className="flex items-start justify-between">
+            <div>
+              <h1 className="text-3xl font-bold text-slate-900 dark:text-slate-100 mb-2">{job.title}</h1>
+              <div className="flex items-center gap-4 text-sm text-slate-600 dark:text-slate-400">
+                <span>Created {formatDate(job.createdAt)}</span>
+                {hasResumes && (
+                  <>
+                    <span>•</span>
+                    <span>
+                      {analytics.total} candidate{analytics.total !== 1 ? "s" : ""}
+                    </span>
+                    {analytics.analyzed > 0 && (
+                      <>
+                        <span>•</span>
+                        <span className="text-blue-600 font-medium">{analytics.analyzed} analyzed</span>
+                      </>
+                    )}
+                  </>
+                )}
+              </div>
+            </div>
           </div>
         </div>
 
