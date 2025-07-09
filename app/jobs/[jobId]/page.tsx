@@ -25,6 +25,7 @@ import {
   ArrowUpDownIcon,
   BarChart3Icon,
   ArrowRightIcon,
+  PencilIcon,
 } from "lucide-react";
 
 interface Job {
@@ -94,6 +95,9 @@ export default function JobDetailPage({ params }: { params: Promise<{ jobId: str
   const [bulkDeleteType, setBulkDeleteType] = useState<"selected" | "all">("selected");
   const [sortOption, setSortOption] = useState<SortOption>("fit-desc");
   const [matching, setMatching] = useState(false);
+  const [isEditJobOpen, setIsEditJobOpen] = useState(false);
+  const [editJobData, setEditJobData] = useState({ title: "", jdText: "" });
+  const [isUpdatingJob, setIsUpdatingJob] = useState(false);
 
   useEffect(() => {
     if (jobId) {
@@ -333,6 +337,45 @@ export default function JobDetailPage({ params }: { params: Promise<{ jobId: str
     sortOption
   );
 
+  // Analytics calculations
+  const matchedResumes = resumesWithStatus.filter((r) => r.matchResult);
+  const avgScore =
+    matchedResumes.length > 0
+      ? matchedResumes.reduce((sum, r) => {
+          const score = r.matchResult?.fitScore ?? r.matchResult?.similarity ?? 0;
+          return sum + score;
+        }, 0) / matchedResumes.length
+      : 0;
+
+  const excellentCount = matchedResumes.filter((r) => {
+    const score = r.matchResult?.fitScore ?? r.matchResult?.similarity ?? 0;
+    return score >= 0.8;
+  }).length;
+
+  const goodCount = matchedResumes.filter((r) => {
+    const score = r.matchResult?.fitScore ?? r.matchResult?.similarity ?? 0;
+    return score >= 0.6 && score < 0.8;
+  }).length;
+
+  const fairCount = matchedResumes.filter((r) => {
+    const score = r.matchResult?.fitScore ?? r.matchResult?.similarity ?? 0;
+    return score >= 0.4 && score < 0.6;
+  }).length;
+
+  const poorCount = matchedResumes.filter((r) => {
+    const score = r.matchResult?.fitScore ?? r.matchResult?.similarity ?? 0;
+    return score < 0.4;
+  }).length;
+
+  const topCandidate =
+    matchedResumes.length > 0
+      ? matchedResumes.reduce((top, current) => {
+          const currentScore = current.matchResult?.fitScore ?? current.matchResult?.similarity ?? 0;
+          const topScore = top.matchResult?.fitScore ?? top.matchResult?.similarity ?? 0;
+          return currentScore > topScore ? current : top;
+        })
+      : null;
+
   const runMatching = async (forceRerun = false) => {
     if (!job) return;
 
@@ -360,6 +403,37 @@ export default function JobDetailPage({ params }: { params: Promise<{ jobId: str
       console.error("Error running matching:", error);
     } finally {
       setMatching(false);
+    }
+  };
+
+  const handleUpdateJob = async () => {
+    if (!editJobData.title.trim() || !editJobData.jdText.trim()) return;
+
+    setIsUpdatingJob(true);
+    try {
+      const response = await fetch(`/api/jobs/${jobId}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          title: editJobData.title.trim(),
+          jdText: editJobData.jdText.trim(),
+        }),
+      });
+
+      if (response.ok) {
+        const updatedJob = await response.json();
+        setJob(updatedJob);
+        setIsEditJobOpen(false);
+        setEditJobData({ title: "", jdText: "" });
+      } else {
+        const error = await response.json();
+        alert(`Failed to update job: ${error.error || "Unknown error"}`);
+      }
+    } catch (error) {
+      console.error("Error updating job:", error);
+      alert("Failed to update job. Please try again.");
+    } finally {
+      setIsUpdatingJob(false);
     }
   };
 
@@ -502,6 +576,58 @@ export default function JobDetailPage({ params }: { params: Promise<{ jobId: str
           </DialogContent>
         </Dialog>
 
+        {/* Job Edit Dialog */}
+        <Dialog open={isEditJobOpen} onOpenChange={setIsEditJobOpen}>
+          <DialogContent className="sm:max-w-2xl max-h-[80vh] overflow-hidden">
+            <DialogHeader>
+              <DialogTitle>Edit Job Details</DialogTitle>
+              <DialogDescription>Update the job title and description</DialogDescription>
+            </DialogHeader>
+            <div className="grid gap-4 py-4 overflow-y-auto max-h-[60vh]">
+              <div className="grid gap-2">
+                <Label htmlFor="jobTitle">Job Title</Label>
+                <Input
+                  id="jobTitle"
+                  placeholder="e.g. Senior Software Engineer"
+                  value={editJobData.title}
+                  onChange={(e) => setEditJobData({ ...editJobData, title: e.target.value })}
+                />
+              </div>
+              <div className="grid gap-2">
+                <Label htmlFor="jobDescription">Job Description</Label>
+                <Textarea
+                  id="jobDescription"
+                  placeholder="Enter the full job description here..."
+                  value={editJobData.jdText}
+                  onChange={(e) => setEditJobData({ ...editJobData, jdText: e.target.value })}
+                  rows={12}
+                  className="max-h-96 resize-none"
+                />
+              </div>
+            </div>
+            <div className="border-t pt-4">
+              <div className="flex gap-3 justify-end">
+                <Button
+                  variant="outline"
+                  onClick={() => {
+                    setIsEditJobOpen(false);
+                    setEditJobData({ title: "", jdText: "" });
+                  }}
+                  disabled={isUpdatingJob}
+                >
+                  Cancel
+                </Button>
+                <Button
+                  onClick={handleUpdateJob}
+                  disabled={isUpdatingJob || !editJobData.title.trim() || !editJobData.jdText.trim()}
+                >
+                  {isUpdatingJob ? "Updating..." : "Save Changes"}
+                </Button>
+              </div>
+            </div>
+          </DialogContent>
+        </Dialog>
+
         <Dialog open={bulkDeleteConfirmOpen} onOpenChange={setBulkDeleteConfirmOpen}>
           <DialogContent>
             <DialogHeader>
@@ -541,54 +667,176 @@ export default function JobDetailPage({ params }: { params: Promise<{ jobId: str
           {/* Job Description */}
           <Card>
             <CardHeader>
-              <CardTitle>Job Description</CardTitle>
+              <div className="flex items-center justify-between">
+                <div>
+                  <CardTitle>Job Description</CardTitle>
+                  <CardDescription>Edit job details and JD</CardDescription>
+                </div>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => {
+                    setEditJobData({ title: job.title, jdText: job.jdText });
+                    setIsEditJobOpen(true);
+                  }}
+                >
+                  <PencilIcon className="h-4 w-4" />
+                </Button>
+              </div>
             </CardHeader>
             <CardContent>
-              <div className="whitespace-pre-wrap text-sm">{job.jdText}</div>
+              <div className="space-y-4">
+                {/* Job Title */}
+                <div>
+                  <h3 className="text-lg font-semibold text-slate-900 dark:text-slate-100 mb-2">{job.title}</h3>
+                </div>
+
+                {/* Job Description */}
+                <div>
+                  <div className="bg-slate-50 dark:bg-slate-800 rounded-lg p-4">
+                    <pre className="whitespace-pre-wrap text-sm text-slate-700 dark:text-slate-300 leading-relaxed font-sans">
+                      {job.jdText}
+                    </pre>
+                  </div>
+
+                  {/* JD Stats */}
+                  <div className="flex items-center gap-4 mt-3 text-xs text-slate-500 dark:text-slate-400">
+                    <span>{job.jdText.split(/\s+/).filter((word) => word.length > 0).length} words</span>
+                    <span>•</span>
+                    <span>{job.jdText.length} characters</span>
+                    <span>•</span>
+                    <span>Created {new Date(job.createdAt).toLocaleDateString()}</span>
+                  </div>
+                </div>
+              </div>
             </CardContent>
           </Card>
 
           {/* Candidate Management */}
           <div className="space-y-6">
             {/* Quick Analytics & Analysis Link */}
-            {hasResumes && (
-              <Card className="border-blue-200 bg-blue-50">
-                <CardHeader className="pb-4">
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <CardTitle className="text-lg text-blue-900">Analysis Overview</CardTitle>
-                      <CardDescription className="text-blue-700">
-                        {analytics.analyzed} of {analytics.total} candidates analyzed
-                      </CardDescription>
+            <Card>
+              <CardHeader>
+                <CardTitle>Analysis Overview</CardTitle>
+                <CardDescription>Quick insights and candidate summary</CardDescription>
+              </CardHeader>
+              <CardContent>
+                {matchedResumes.length > 0 ? (
+                  <div className="space-y-4">
+                    {/* Main Statistics Grid */}
+                    <div className="grid grid-cols-2 gap-4">
+                      <div className="bg-gradient-to-r from-blue-50 to-blue-100 dark:from-blue-900 dark:to-blue-800 p-4 rounded-lg">
+                        <div className="text-2xl font-bold text-blue-700 dark:text-blue-200">
+                          {matchedResumes.length}
+                        </div>
+                        <div className="text-sm text-blue-600 dark:text-blue-300">Candidates Analyzed</div>
+                      </div>
+                      <div className="bg-gradient-to-r from-green-50 to-green-100 dark:from-green-900 dark:to-green-800 p-4 rounded-lg">
+                        <div className="text-2xl font-bold text-green-700 dark:text-green-200">
+                          {(avgScore * 100).toFixed(1)}%
+                        </div>
+                        <div className="text-sm text-green-600 dark:text-green-300">Average Fit Score</div>
+                      </div>
                     </div>
-                    <BarChart3Icon className="h-8 w-8 text-blue-600" />
+
+                    {/* Performance Breakdown */}
+                    <div className="space-y-3">
+                      <h4 className="text-sm font-medium text-slate-700 dark:text-slate-300">Performance Breakdown</h4>
+                      <div className="space-y-2">
+                        {[
+                          {
+                            label: "Excellent",
+                            count: excellentCount,
+                            color: "bg-green-500",
+                            percentage: matchedResumes.length > 0 ? (excellentCount / matchedResumes.length) * 100 : 0,
+                          },
+                          {
+                            label: "Good",
+                            count: goodCount,
+                            color: "bg-yellow-500",
+                            percentage: matchedResumes.length > 0 ? (goodCount / matchedResumes.length) * 100 : 0,
+                          },
+                          {
+                            label: "Fair",
+                            count: fairCount,
+                            color: "bg-orange-500",
+                            percentage: matchedResumes.length > 0 ? (fairCount / matchedResumes.length) * 100 : 0,
+                          },
+                          {
+                            label: "Poor",
+                            count: poorCount,
+                            color: "bg-red-500",
+                            percentage: matchedResumes.length > 0 ? (poorCount / matchedResumes.length) * 100 : 0,
+                          },
+                        ].map(({ label, count, color, percentage }) => (
+                          <div key={label} className="flex items-center justify-between">
+                            <div className="flex items-center gap-3">
+                              <div className={`w-3 h-3 rounded-full ${color}`}></div>
+                              <span className="text-sm text-slate-600 dark:text-slate-400">{label}</span>
+                            </div>
+                            <div className="flex items-center gap-2">
+                              <span className="text-sm font-medium">{count}</span>
+                              <span className="text-xs text-slate-500">({percentage.toFixed(0)}%)</span>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+
+                    {/* Top Candidate */}
+                    {topCandidate && (
+                      <div className="border-t pt-4">
+                        <h4 className="text-sm font-medium text-slate-700 dark:text-slate-300 mb-2">Top Candidate</h4>
+                        <div className="bg-slate-50 dark:bg-slate-800 p-3 rounded-lg">
+                          <div className="flex items-center justify-between mb-2">
+                            <span className="font-medium text-slate-900 dark:text-slate-100">
+                              {topCandidate.candidate || "Unknown"}
+                            </span>
+                            <Badge className="bg-green-100 text-green-800">
+                              {(
+                                (topCandidate.matchResult?.fitScore ?? topCandidate.matchResult?.similarity ?? 0) * 100
+                              ).toFixed(1)}
+                              %
+                            </Badge>
+                          </div>
+                          <div className="text-xs text-slate-600 dark:text-slate-400 line-clamp-2">
+                            {topCandidate.matchResult?.summary || "No summary available"}
+                          </div>
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Navigation to Full Analysis */}
+                    <div className="pt-4 border-t">
+                      <Link href={`/jobs/${jobId}/matching`}>
+                        <Button className="w-full" variant="outline">
+                          <BarChart3Icon className="h-4 w-4 mr-2" />
+                          View Detailed Analysis Dashboard
+                          <ArrowRightIcon className="h-4 w-4 ml-2" />
+                        </Button>
+                      </Link>
+                    </div>
                   </div>
-                </CardHeader>
-                <CardContent className="pt-0">
-                  <div className="grid grid-cols-3 gap-4 mb-4">
-                    <div className="text-center">
-                      <p className="text-2xl font-bold text-green-600">{analytics.excellent}</p>
-                      <p className="text-xs text-slate-600">Excellent</p>
-                    </div>
-                    <div className="text-center">
-                      <p className="text-2xl font-bold text-blue-600">{analytics.analyzed}</p>
-                      <p className="text-xs text-slate-600">Analyzed</p>
-                    </div>
-                    <div className="text-center">
-                      <p className="text-2xl font-bold text-orange-600">{analytics.pending}</p>
-                      <p className="text-xs text-slate-600">Pending</p>
-                    </div>
+                ) : (
+                  <div className="text-center py-8">
+                    <BarChart3Icon className="h-12 w-12 text-slate-400 mx-auto mb-4" />
+                    <p className="text-slate-600 dark:text-slate-400 mb-4">No analysis data available yet</p>
+                    <p className="text-sm text-slate-500 dark:text-slate-500 mb-4">
+                      Upload resumes and run matching to see insights
+                    </p>
+                    {resumesWithStatus.length > 0 && (
+                      <Button
+                        onClick={() => runMatching(true)}
+                        disabled={matching}
+                        className="bg-green-600 hover:bg-green-700"
+                      >
+                        {matching ? "Analyzing..." : "Start Analysis"}
+                      </Button>
+                    )}
                   </div>
-                  <Link href={`/jobs/${jobId}/matching`}>
-                    <Button className="w-full bg-blue-600 hover:bg-blue-700">
-                      <BarChart3Icon className="h-4 w-4 mr-2" />
-                      View Detailed Analysis Dashboard
-                      <ArrowRightIcon className="h-4 w-4 ml-2" />
-                    </Button>
-                  </Link>
-                </CardContent>
-              </Card>
-            )}
+                )}
+              </CardContent>
+            </Card>
 
             {/* Candidate Management */}
             <Card>

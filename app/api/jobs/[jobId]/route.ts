@@ -70,3 +70,37 @@ export async function DELETE(req: NextRequest, { params }: { params: Promise<{ j
     );
   }
 }
+
+export async function PUT(req: NextRequest, { params }: { params: Promise<{ jobId: string }> }) {
+  const { jobId } = await params;
+  const jobIdNum = Number(jobId);
+
+  try {
+    const { title, jdText } = await req.json();
+
+    if (!title?.trim() || !jdText?.trim()) {
+      return NextResponse.json({ error: "Title and job description are required" }, { status: 400 });
+    }
+
+    // Update the job in the database
+    const [updatedJob] = await db
+      .update(jobs)
+      .set({
+        title: title.trim(),
+        jdText: jdText.trim(),
+      })
+      .where(eq(jobs.id, jobIdNum))
+      .returning();
+
+    if (!updatedJob) {
+      return NextResponse.json({ error: "Job not found" }, { status: 404 });
+    }
+
+    console.log(`📝 Updated job ${jobId}: "${updatedJob.title}"`);
+
+    return NextResponse.json(updatedJob);
+  } catch (error) {
+    console.error("Error updating job:", error);
+    return NextResponse.json({ error: "Failed to update job" }, { status: 500 });
+  }
+}
