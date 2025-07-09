@@ -34,6 +34,7 @@ interface Resume {
 interface MatchResult {
   resumeId: number;
   similarity: number;
+  fitScore?: number;
   matching_skills: string[];
   missing_skills: string[];
   summary: string;
@@ -43,6 +44,7 @@ interface MatchResult {
 interface ComparisonFromAPI {
   resumeId: number;
   similarity: number;
+  fitScore?: number;
   matchingSkills: string[];
   missingSkills: string[];
   summary: string;
@@ -127,6 +129,7 @@ export default function JobDetailPage({ params }: { params: Promise<{ jobId: str
               ? {
                   resumeId: matchResult.resumeId,
                   similarity: matchResult.similarity,
+                  fitScore: matchResult.fitScore,
                   summary: matchResult.summary,
                   matching_skills: matchResult.matchingSkills || [],
                   missing_skills: matchResult.missingSkills || [],
@@ -145,6 +148,7 @@ export default function JobDetailPage({ params }: { params: Promise<{ jobId: str
             return {
               resumeId: comp.resumeId,
               similarity: comp.similarity,
+              fitScore: comp.fitScore,
               summary: comp.summary,
               matching_skills: comp.matchingSkills || [],
               missing_skills: comp.missingSkills || [],
@@ -407,9 +411,26 @@ export default function JobDetailPage({ params }: { params: Promise<{ jobId: str
                             </Badge>
                           )}
                           {resume.isMatched && resume.matchResult && (
-                            <Badge className={getScoreBadgeColor(resume.matchResult.similarity)}>
-                              {(resume.matchResult.similarity * 100).toFixed(1)}%
-                            </Badge>
+                            <div className="flex gap-1">
+                              <Badge variant="outline" className="text-xs">
+                                Sim: {(resume.matchResult.similarity * 100).toFixed(1)}%
+                              </Badge>
+                              <Badge
+                                className={getScoreBadgeColor(
+                                  resume.matchResult.fitScore !== undefined
+                                    ? resume.matchResult.fitScore
+                                    : resume.matchResult.similarity
+                                )}
+                              >
+                                Fit:{" "}
+                                {(
+                                  (resume.matchResult.fitScore !== undefined
+                                    ? resume.matchResult.fitScore
+                                    : resume.matchResult.similarity) * 100
+                                ).toFixed(1)}
+                                %
+                              </Badge>
+                            </div>
                           )}
                         </div>
                       </div>
@@ -455,9 +476,22 @@ export default function JobDetailPage({ params }: { params: Promise<{ jobId: str
                             <h4 className="font-medium">
                               {resumes.find((r) => r.id === result.resumeId)?.candidate || "Unknown"}
                             </h4>
-                            <Badge className={getScoreBadgeColor(result.similarity)}>
-                              {(result.similarity * 100).toFixed(1)}% Match
-                            </Badge>
+                            <div className="flex gap-2">
+                              <Badge variant="outline" className="text-xs">
+                                Sim: {(result.similarity * 100).toFixed(1)}%
+                              </Badge>
+                              <Badge
+                                className={getScoreBadgeColor(
+                                  result.fitScore !== undefined ? result.fitScore : result.similarity
+                                )}
+                              >
+                                Fit:{" "}
+                                {((result.fitScore !== undefined ? result.fitScore : result.similarity) * 100).toFixed(
+                                  1
+                                )}
+                                %
+                              </Badge>
+                            </div>
                           </div>
 
                           <p className="text-sm text-slate-600 dark:text-slate-400 mb-3">

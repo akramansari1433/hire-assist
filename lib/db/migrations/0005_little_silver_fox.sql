@@ -1,0 +1,1 @@
+ALTER TABLE "comparisons" ADD COLUMN "fit_score" real;

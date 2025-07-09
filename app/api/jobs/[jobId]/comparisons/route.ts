@@ -11,6 +11,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ jobI
       .select({
         resumeId: comparisons.resumeId,
         similarity: comparisons.similarity,
+        fitScore: comparisons.fitScore,
         matchingSkills: comparisons.matchingSkills,
         missingSkills: comparisons.missingSkills,
         summary: comparisons.summary,

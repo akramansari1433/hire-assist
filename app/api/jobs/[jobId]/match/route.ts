@@ -86,6 +86,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ job
       .select({
         resumeId: comparisons.resumeId,
         similarity: comparisons.similarity,
+        fitScore: comparisons.fitScore,
         matchingSkills: comparisons.matchingSkills,
         missingSkills: comparisons.missingSkills,
         summary: comparisons.summary,
@@ -106,9 +107,11 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ job
       // Check if we already have a comparison for this resume
       if (existingMap.has(resumeId)) {
         const existing = existingMap.get(resumeId)!;
+
         rows.push({
           resumeId,
           similarity: existing.similarity,
+          fitScore: existing.fitScore !== undefined ? existing.fitScore : existing.similarity, // fallback to similarity if no fitScore
           matching_skills: existing.matchingSkills || [],
           missing_skills: existing.missingSkills || [],
           summary: existing.summary || "Previously analyzed candidate",
@@ -129,11 +132,15 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ job
       Candidate Résumé:
       ${full[0].text}
 
-      1) List skills in both.
-      2) List skills missing from the CV.
-      3) One-sentence fit summary.
+      Vector Similarity Score: ${(sim * 100).toFixed(1)}%
 
-      Respond JSON: { "matching_skills":[], "missing_skills":[], "summary":"" }
+      Based on the job description, resume content, and similarity score:
+      1) List skills that match between job and resume
+      2) List skills missing from the resume 
+      3) One-sentence fit summary
+      4) Overall fit score from 0.0 to 1.0 considering job requirements, candidate qualifications, and similarity
+
+      Respond JSON: { "matching_skills":[], "missing_skills":[], "summary":"", "fit_score": 0.0 }
       `;
 
       try {
@@ -151,7 +158,11 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ job
           cleanText = cleanText.replace(/^```\s*/, "").replace(/\s*```$/, "");
         }
 
-        const { matching_skills, missing_skills, summary } = JSON.parse(cleanText);
+        const { matching_skills, missing_skills, summary, fit_score } = JSON.parse(cleanText);
+
+        console.log("🚀 ~ POST ~ matching_skills:", fit_score);
+        // Ensure fit_score is valid, fallback to similarity if needed
+        const fitScore = typeof fit_score === "number" && fit_score >= 0 && fit_score <= 1 ? fit_score : sim;
 
         // persist
         await db.insert(comparisons).values({
@@ -159,18 +170,20 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ job
           jobId: Number(jobId),
           resumeId,
           similarity: sim,
+          fitScore,
           matchingSkills: matching_skills,
           missingSkills: missing_skills,
           summary,
         });
 
-        rows.push({ resumeId, similarity: sim, matching_skills, missing_skills, summary });
+        rows.push({ resumeId, similarity: sim, fitScore, matching_skills, missing_skills, summary });
       } catch (gptError) {
         console.error(`❌ GPT error for resume ${resumeId}:`, gptError);
         // Add a fallback result
         rows.push({
           resumeId,
           similarity: sim,
+          fitScore: sim, // fallback to similarity score
           matching_skills: [],
           missing_skills: [],
           summary: "Analysis failed, but candidate shows good similarity score.",

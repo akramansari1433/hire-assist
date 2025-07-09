@@ -23,7 +23,6 @@ export const comparisons = pgTable("comparisons", {
   resumeId: integer("resume_id"),
   similarity: real("similarity"),
   fitScore: real("fit_score"),
-  rationale: text("rationale"),
   matchingSkills: text("matching_skills").array(),
   missingSkills: text("missing_skills").array(),
   summary: text("summary"),
