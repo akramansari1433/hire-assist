@@ -15,8 +15,17 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Label } from "@/components/ui/label";
-import { PlusIcon, ArrowLeftIcon, UserIcon, CheckCircleIcon } from "lucide-react";
+import {
+  PlusIcon,
+  ArrowLeftIcon,
+  UserIcon,
+  Trash2Icon,
+  ArrowUpDownIcon,
+  ChevronDownIcon,
+  ChevronUpIcon,
+} from "lucide-react";
 
 interface Job {
   id: number;
@@ -54,7 +63,18 @@ interface ComparisonFromAPI {
 interface ResumeWithStatus extends Resume {
   isMatched: boolean;
   matchResult?: MatchResult;
+  selected?: boolean;
 }
+
+type SortOption =
+  | "similarity-desc"
+  | "similarity-asc"
+  | "fit-desc"
+  | "fit-asc"
+  | "name-asc"
+  | "name-desc"
+  | "date-desc"
+  | "date-asc";
 
 export default function JobDetailPage({ params }: { params: Promise<{ jobId: string }> }) {
   const { jobId } = use(params);
@@ -64,10 +84,17 @@ export default function JobDetailPage({ params }: { params: Promise<{ jobId: str
   const [resumesWithStatus, setResumesWithStatus] = useState<ResumeWithStatus[]>([]);
   const [loading, setLoading] = useState(true);
   const [uploading, setUploading] = useState(false);
+  const [deleting, setDeleting] = useState<number | null>(null);
+  const [bulkDeleting, setBulkDeleting] = useState(false);
   const [newResume, setNewResume] = useState({ candidateName: "", fullText: "" });
   const [isUploadDialogOpen, setIsUploadDialogOpen] = useState(false);
+  const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
+  const [bulkDeleteConfirmOpen, setBulkDeleteConfirmOpen] = useState(false);
+  const [resumeToDelete, setResumeToDelete] = useState<ResumeWithStatus | null>(null);
+  const [bulkDeleteType, setBulkDeleteType] = useState<"selected" | "all">("selected");
+  const [sortOption, setSortOption] = useState<SortOption>("fit-desc");
   const [matching, setMatching] = useState(false);
-  const [matchResults, setMatchResults] = useState<MatchResult[]>([]);
+  const [expandedDetails, setExpandedDetails] = useState<{ [key: number]: boolean }>({});
   const [expandedMatching, setExpandedMatching] = useState<{ [key: number]: boolean }>({});
   const [expandedMissing, setExpandedMissing] = useState<{ [key: number]: boolean }>({});
 
@@ -127,6 +154,7 @@ export default function JobDetailPage({ params }: { params: Promise<{ jobId: str
           return {
             ...resume,
             isMatched: !!matchResult,
+            selected: false,
             matchResult: matchResult
               ? {
                   resumeId: matchResult.resumeId,
@@ -142,28 +170,55 @@ export default function JobDetailPage({ params }: { params: Promise<{ jobId: str
         });
 
         setResumesWithStatus(resumesWithMatchStatus);
-
-        // Set existing match results for display
-        if (comparisons.length > 0) {
-          const enrichedResults = comparisons.map((comp: ComparisonFromAPI) => {
-            const resume = resumes.find((r) => r.id === comp.resumeId);
-            return {
-              resumeId: comp.resumeId,
-              similarity: comp.similarity,
-              fitScore: comp.fitScore,
-              summary: comp.summary,
-              matching_skills: comp.matchingSkills || [],
-              missing_skills: comp.missingSkills || [],
-              candidateName: resume?.candidate || "Unknown Candidate",
-              createdAt: comp.createdAt,
-            };
-          });
-          setMatchResults(enrichedResults);
-        }
       }
     } catch (error) {
       console.error("Error fetching existing comparisons:", error);
     }
+  };
+
+  const sortResumes = (resumes: ResumeWithStatus[], sortOption: SortOption): ResumeWithStatus[] => {
+    return [...resumes].sort((a, b) => {
+      switch (sortOption) {
+        case "similarity-desc":
+          const aSimScore = a.matchResult?.similarity || 0;
+          const bSimScore = b.matchResult?.similarity || 0;
+          return bSimScore - aSimScore;
+
+        case "similarity-asc":
+          const aSimScoreAsc = a.matchResult?.similarity || 0;
+          const bSimScoreAsc = b.matchResult?.similarity || 0;
+          return aSimScoreAsc - bSimScoreAsc;
+
+        case "fit-desc":
+          const aFitScore =
+            a.matchResult?.fitScore !== undefined ? a.matchResult.fitScore : a.matchResult?.similarity || 0;
+          const bFitScore =
+            b.matchResult?.fitScore !== undefined ? b.matchResult.fitScore : b.matchResult?.similarity || 0;
+          return bFitScore - aFitScore;
+
+        case "fit-asc":
+          const aFitScoreAsc =
+            a.matchResult?.fitScore !== undefined ? a.matchResult.fitScore : a.matchResult?.similarity || 0;
+          const bFitScoreAsc =
+            b.matchResult?.fitScore !== undefined ? b.matchResult.fitScore : b.matchResult?.similarity || 0;
+          return aFitScoreAsc - bFitScoreAsc;
+
+        case "name-asc":
+          return a.candidate.localeCompare(b.candidate);
+
+        case "name-desc":
+          return b.candidate.localeCompare(a.candidate);
+
+        case "date-desc":
+          return new Date(b.when).getTime() - new Date(a.when).getTime();
+
+        case "date-asc":
+          return new Date(a.when).getTime() - new Date(b.when).getTime();
+
+        default:
+          return 0;
+      }
+    });
   };
 
   const handleUploadResume = async () => {
@@ -189,6 +244,110 @@ export default function JobDetailPage({ params }: { params: Promise<{ jobId: str
     }
   };
 
+  const handleDeleteResume = (resume: ResumeWithStatus) => {
+    setResumeToDelete(resume);
+    setDeleteConfirmOpen(true);
+  };
+
+  const confirmDeleteResume = async () => {
+    if (!resumeToDelete) return;
+
+    setDeleting(resumeToDelete.id);
+    try {
+      const response = await fetch(`/api/jobs/${jobId}/resumes/${resumeToDelete.id}`, {
+        method: "DELETE",
+      });
+
+      if (response.ok) {
+        const result = await response.json();
+        console.log(`Resume deleted: ${result.deletedResume.candidateName}, ${result.deletedComparisons} comparisons`);
+        fetchResumes(); // Refresh the list
+      } else {
+        const error = await response.json();
+        console.error("Delete failed:", error);
+        alert(`Failed to delete resume: ${error.error}`);
+      }
+    } catch (error) {
+      console.error("Error deleting resume:", error);
+      alert("Failed to delete resume. Please try again.");
+    } finally {
+      setDeleting(null);
+      setDeleteConfirmOpen(false);
+      setResumeToDelete(null);
+    }
+  };
+
+  const handleBulkDelete = (type: "selected" | "all") => {
+    setBulkDeleteType(type);
+    setBulkDeleteConfirmOpen(true);
+  };
+
+  const confirmBulkDelete = async () => {
+    setBulkDeleting(true);
+    try {
+      const payload = bulkDeleteType === "all" ? { deleteAll: true } : { resumeIds: selectedResumes.map((r) => r.id) };
+
+      const response = await fetch(`/api/jobs/${jobId}/resumes/bulk-delete`, {
+        method: "DELETE",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      });
+
+      if (response.ok) {
+        const result = await response.json();
+        console.log(`Bulk delete completed: ${result.totalDeleted} resumes, ${result.deletedComparisons} comparisons`);
+        fetchResumes(); // Refresh the list
+      } else {
+        const error = await response.json();
+        console.error("Bulk delete failed:", error);
+        alert(`Failed to delete resumes: ${error.error}`);
+      }
+    } catch (error) {
+      console.error("Error with bulk delete:", error);
+      alert("Failed to delete resumes. Please try again.");
+    } finally {
+      setBulkDeleting(false);
+      setBulkDeleteConfirmOpen(false);
+    }
+  };
+
+  const toggleResumeSelection = (resumeId: number) => {
+    setResumesWithStatus((prev) =>
+      prev.map((resume) => (resume.id === resumeId ? { ...resume, selected: !resume.selected } : resume))
+    );
+  };
+
+  const toggleSelectAll = () => {
+    const allSelected = resumesWithStatus.every((resume) => resume.selected);
+    setResumesWithStatus((prev) => prev.map((resume) => ({ ...resume, selected: !allSelected })));
+  };
+
+  const toggleDetails = (resumeId: number) => {
+    setExpandedDetails((prev) => ({ ...prev, [resumeId]: !prev[resumeId] }));
+  };
+
+  const toggleMatchingSkills = (resumeId: number) => {
+    setExpandedMatching((prev) => ({ ...prev, [resumeId]: !prev[resumeId] }));
+  };
+
+  const toggleMissingSkills = (resumeId: number) => {
+    setExpandedMissing((prev) => ({ ...prev, [resumeId]: !prev[resumeId] }));
+  };
+
+  const selectedResumes = resumesWithStatus.filter((resume) => resume.selected);
+  const hasResumes = resumesWithStatus.length > 0;
+  const hasSelectedResumes = selectedResumes.length > 0;
+  const allSelected = resumesWithStatus.length > 0 && resumesWithStatus.every((resume) => resume.selected);
+  const hasMatchedResumes = resumesWithStatus.some((resume) => resume.isMatched);
+
+  // Apply sorting to resumes
+  const sortedResumes = sortResumes(
+    resumesWithStatus.length > 0
+      ? resumesWithStatus
+      : resumes.map((r) => ({ ...r, isMatched: false, matchResult: undefined, selected: false })),
+    sortOption
+  );
+
   const runMatching = async (forceRerun = false) => {
     if (!job) return;
 
@@ -201,41 +360,19 @@ export default function JobDetailPage({ params }: { params: Promise<{ jobId: str
     }
 
     setMatching(true);
-
     try {
       const response = await fetch(`/api/jobs/${jobId}/match`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          userId: "user-123",
-          topK: 20,
-        }),
+        body: JSON.stringify({ userId: "user-123", topK: 10 }),
       });
 
-      if (!response.ok) {
-        const errorText = await response.text();
-        alert(`Matching failed: ${response.status} - ${errorText}`);
-        return;
+      if (response.ok) {
+        // Refresh comparisons and resume status
+        fetchExistingComparisons();
       }
-
-      const results = await response.json();
-
-      // Enrich results with candidate names
-      const enrichedResults = results.map((result: MatchResult) => {
-        const resume = resumes.find((r) => r.id === result.resumeId);
-        return {
-          ...result,
-          candidateName: resume?.candidate || "Unknown Candidate",
-        };
-      });
-
-      setMatchResults(enrichedResults);
-
-      // Refresh the comparisons to update the UI
-      await fetchExistingComparisons();
     } catch (error) {
       console.error("Error running matching:", error);
-      alert(`Matching error: ${error instanceof Error ? error.message : String(error)}`);
     } finally {
       setMatching(false);
     }
@@ -243,17 +380,14 @@ export default function JobDetailPage({ params }: { params: Promise<{ jobId: str
 
   const getMatchingButtonText = () => {
     const unmatchedCount = resumesWithStatus.filter((r) => !r.isMatched).length;
-    const totalCount = resumesWithStatus.length;
-
-    if (totalCount === 0) return "Run Matching";
-    if (unmatchedCount === 0) return "All Matched";
-    if (unmatchedCount === totalCount) return "Run Matching";
-    return `Match ${unmatchedCount} New`;
+    if (unmatchedCount === 0) {
+      return "All Matched";
+    }
+    return `Match ${unmatchedCount} Resume${unmatchedCount > 1 ? "s" : ""}`;
   };
 
   const shouldDisableMatching = () => {
-    const unmatchedCount = resumesWithStatus.filter((r) => !r.isMatched).length;
-    return matching || unmatchedCount === 0;
+    return matching || resumesWithStatus.filter((r) => !r.isMatched).length === 0;
   };
 
   const formatDate = (dateString: string) => {
@@ -268,14 +402,6 @@ export default function JobDetailPage({ params }: { params: Promise<{ jobId: str
     if (score >= 0.8) return "bg-green-100 text-green-800 border-green-200";
     if (score >= 0.6) return "bg-yellow-100 text-yellow-800 border-yellow-200";
     return "bg-red-100 text-red-800 border-red-200";
-  };
-
-  const toggleMatchingSkills = (resumeId: number) => {
-    setExpandedMatching((prev) => ({ ...prev, [resumeId]: !prev[resumeId] }));
-  };
-
-  const toggleMissingSkills = (resumeId: number) => {
-    setExpandedMissing((prev) => ({ ...prev, [resumeId]: !prev[resumeId] }));
   };
 
   if (loading) {
@@ -322,6 +448,71 @@ export default function JobDetailPage({ params }: { params: Promise<{ jobId: str
           </div>
         </div>
 
+        {/* Delete Confirmation Dialogs */}
+        <Dialog open={deleteConfirmOpen} onOpenChange={setDeleteConfirmOpen}>
+          <DialogContent>
+            <DialogHeader>
+              <DialogTitle>Delete Resume</DialogTitle>
+              <DialogDescription>
+                Are you sure you want to delete &quot;{resumeToDelete?.candidate}&quot;? This will permanently delete:
+                <br />
+                <br />
+                • The resume and all its data
+                <br />
+                • All AI comparisons for this candidate
+                <br />
+                • All vector embeddings in Pinecone
+                <br />
+                <br />
+                This action cannot be undone.
+              </DialogDescription>
+            </DialogHeader>
+            <div className="flex gap-3 justify-end">
+              <Button variant="outline" onClick={() => setDeleteConfirmOpen(false)} disabled={deleting !== null}>
+                Cancel
+              </Button>
+              <Button variant="destructive" onClick={confirmDeleteResume} disabled={deleting !== null}>
+                {deleting === resumeToDelete?.id ? "Deleting..." : "Delete Resume"}
+              </Button>
+            </div>
+          </DialogContent>
+        </Dialog>
+
+        <Dialog open={bulkDeleteConfirmOpen} onOpenChange={setBulkDeleteConfirmOpen}>
+          <DialogContent>
+            <DialogHeader>
+              <DialogTitle>{bulkDeleteType === "all" ? "Delete All Resumes" : "Delete Selected Resumes"}</DialogTitle>
+              <DialogDescription>
+                {bulkDeleteType === "all"
+                  ? `Are you sure you want to delete ALL ${resumesWithStatus.length} resumes?`
+                  : `Are you sure you want to delete ${selectedResumes.length} selected resume${
+                      selectedResumes.length > 1 ? "s" : ""
+                    }?`}
+                <br />
+                <br />
+                This will permanently delete:
+                <br />
+                • All resume data and text
+                <br />
+                • All AI comparisons and analysis
+                <br />
+                • All vector embeddings in Pinecone
+                <br />
+                <br />
+                This action cannot be undone.
+              </DialogDescription>
+            </DialogHeader>
+            <div className="flex gap-3 justify-end">
+              <Button variant="outline" onClick={() => setBulkDeleteConfirmOpen(false)} disabled={bulkDeleting}>
+                Cancel
+              </Button>
+              <Button variant="destructive" onClick={confirmBulkDelete} disabled={bulkDeleting}>
+                {bulkDeleting ? "Deleting..." : `Delete ${bulkDeleteType === "all" ? "All" : selectedResumes.length}`}
+              </Button>
+            </div>
+          </DialogContent>
+        </Dialog>
+
         <div className="grid gap-6 lg:grid-cols-2">
           {/* Job Description */}
           <Card>
@@ -333,116 +524,318 @@ export default function JobDetailPage({ params }: { params: Promise<{ jobId: str
             </CardContent>
           </Card>
 
-          {/* Resume Management */}
+          {/* Unified Resume Management & Analysis */}
           <div className="space-y-6">
-            {/* Upload Resume */}
             <Card>
               <CardHeader>
                 <div className="flex items-center justify-between">
-                  <CardTitle>Resumes ({resumes.length})</CardTitle>
-                  <Dialog open={isUploadDialogOpen} onOpenChange={setIsUploadDialogOpen}>
-                    <DialogTrigger asChild>
-                      <Button size="sm">
-                        <PlusIcon className="h-4 w-4 mr-2" />
-                        Upload Resume
-                      </Button>
-                    </DialogTrigger>
-                    <DialogContent className="sm:max-w-2xl max-h-[80vh] overflow-hidden">
-                      <DialogHeader>
-                        <DialogTitle>Upload Resume</DialogTitle>
-                        <DialogDescription>Add a new candidate resume for this job.</DialogDescription>
-                      </DialogHeader>
-                      <div className="grid gap-4 py-4 overflow-y-auto max-h-[60vh]">
-                        <div className="grid gap-2">
-                          <Label htmlFor="candidateName">Candidate Name</Label>
-                          <Input
-                            id="candidateName"
-                            placeholder="e.g. John Doe"
-                            value={newResume.candidateName}
-                            onChange={(e) => setNewResume({ ...newResume, candidateName: e.target.value })}
-                          />
-                        </div>
-                        <div className="grid gap-2">
-                          <Label htmlFor="resumeText">Resume Text</Label>
-                          <Textarea
-                            id="resumeText"
-                            placeholder="Paste the full resume text here..."
-                            value={newResume.fullText}
-                            onChange={(e) => setNewResume({ ...newResume, fullText: e.target.value })}
-                            rows={6}
-                            className="max-h-40 resize-none"
-                          />
-                        </div>
-                      </div>
-                      <div className="border-t pt-4">
-                        <Button
-                          onClick={handleUploadResume}
-                          disabled={uploading || !newResume.candidateName || !newResume.fullText}
-                          className="w-full"
-                        >
-                          {uploading ? "Uploading..." : "Upload Resume"}
-                        </Button>
-                      </div>
-                    </DialogContent>
-                  </Dialog>
-                </div>
-              </CardHeader>
-              <CardContent>
-                {resumes.length === 0 ? (
-                  <div className="text-center py-8">
-                    <UserIcon className="h-12 w-12 text-slate-400 mx-auto mb-4" />
-                    <p className="text-slate-600 dark:text-slate-400">No resumes uploaded yet</p>
+                  <div>
+                    <CardTitle>Candidates ({resumes.length})</CardTitle>
+                    <CardDescription>Manage resumes and view AI analysis results</CardDescription>
                   </div>
-                ) : (
-                  <div className="space-y-3">
-                    {(resumesWithStatus.length > 0
-                      ? resumesWithStatus
-                      : resumes.map((r) => ({ ...r, isMatched: false, matchResult: undefined }))
-                    ).map((resume) => (
-                      <div
-                        key={resume.id}
-                        className="flex items-center justify-between p-3 bg-slate-50 dark:bg-slate-800 rounded-lg"
+                  <div className="flex gap-2">
+                    {resumes.length > 0 && (
+                      <Button
+                        onClick={() => runMatching()}
+                        disabled={shouldDisableMatching()}
+                        size="sm"
+                        className="bg-blue-600 hover:bg-blue-700"
                       >
-                        <div className="flex items-center gap-3">
-                          <UserIcon className="h-5 w-5 text-slate-400" />
-                          <div>
-                            <p className="font-medium">{resume.candidate}</p>
-                            <p className="text-sm text-slate-600 dark:text-slate-400">
-                              Uploaded {formatDate(resume.when)}
-                            </p>
+                        {matching ? "Analyzing..." : getMatchingButtonText()}
+                      </Button>
+                    )}
+                    <Dialog open={isUploadDialogOpen} onOpenChange={setIsUploadDialogOpen}>
+                      <DialogTrigger asChild>
+                        <Button size="sm">
+                          <PlusIcon className="h-4 w-4 mr-2" />
+                          Upload Resume
+                        </Button>
+                      </DialogTrigger>
+                      <DialogContent className="sm:max-w-2xl max-h-[80vh] overflow-hidden">
+                        <DialogHeader>
+                          <DialogTitle>Upload Resume</DialogTitle>
+                          <DialogDescription>Add a new candidate resume for this job.</DialogDescription>
+                        </DialogHeader>
+                        <div className="grid gap-4 py-4 overflow-y-auto max-h-[60vh]">
+                          <div className="grid gap-2">
+                            <Label htmlFor="candidateName">Candidate Name</Label>
+                            <Input
+                              id="candidateName"
+                              placeholder="e.g. John Doe"
+                              value={newResume.candidateName}
+                              onChange={(e) => setNewResume({ ...newResume, candidateName: e.target.value })}
+                            />
+                          </div>
+                          <div className="grid gap-2">
+                            <Label htmlFor="resumeText">Resume Text</Label>
+                            <Textarea
+                              id="resumeText"
+                              placeholder="Paste the full resume text here..."
+                              value={newResume.fullText}
+                              onChange={(e) => setNewResume({ ...newResume, fullText: e.target.value })}
+                              rows={6}
+                              className="max-h-40 resize-none"
+                            />
                           </div>
                         </div>
-                        <div className="flex items-center gap-2">
-                          {resume.isMatched ? (
-                            <Badge className="bg-green-100 text-green-800 border-green-200">✅ Matched</Badge>
-                          ) : (
-                            <Badge variant="outline" className="border-orange-200 text-orange-700">
-                              ⏳ Pending
-                            </Badge>
-                          )}
-                          {resume.isMatched && resume.matchResult && (
-                            <div className="flex gap-1">
-                              <Badge variant="outline" className="text-xs">
-                                Sim: {(resume.matchResult.similarity * 100).toFixed(1)}%
-                              </Badge>
-                              <Badge
-                                className={getScoreBadgeColor(
-                                  resume.matchResult.fitScore !== undefined
-                                    ? resume.matchResult.fitScore
-                                    : resume.matchResult.similarity
-                                )}
-                              >
-                                Fit:{" "}
-                                {(
-                                  (resume.matchResult.fitScore !== undefined
-                                    ? resume.matchResult.fitScore
-                                    : resume.matchResult.similarity) * 100
-                                ).toFixed(1)}
-                                %
-                              </Badge>
-                            </div>
-                          )}
+                        <div className="border-t pt-4">
+                          <Button
+                            onClick={handleUploadResume}
+                            disabled={uploading || !newResume.candidateName || !newResume.fullText}
+                            className="w-full"
+                          >
+                            {uploading ? "Uploading..." : "Upload Resume"}
+                          </Button>
                         </div>
+                      </DialogContent>
+                    </Dialog>
+                  </div>
+                </div>
+
+                {/* Controls Row */}
+                {hasResumes && (
+                  <div className="flex flex-wrap items-center gap-3 pt-4 border-t">
+                    {/* Bulk Actions */}
+                    <div className="flex items-center gap-2">
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => handleBulkDelete("all")}
+                        disabled={bulkDeleting}
+                        className="text-red-600 hover:text-red-700 hover:bg-red-50"
+                      >
+                        <Trash2Icon className="h-4 w-4 mr-1" />
+                        Delete All
+                      </Button>
+                      {hasSelectedResumes && (
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => handleBulkDelete("selected")}
+                          disabled={bulkDeleting}
+                          className="text-red-600 hover:text-red-700 hover:bg-red-50"
+                        >
+                          <Trash2Icon className="h-4 w-4 mr-1" />
+                          Delete Selected ({selectedResumes.length})
+                        </Button>
+                      )}
+                    </div>
+
+                    {/* Sort Controls */}
+                    <div className="flex items-center gap-2 ml-auto">
+                      <ArrowUpDownIcon className="h-4 w-4 text-slate-500" />
+                      <Label htmlFor="sort-select" className="text-sm font-medium">
+                        Sort:
+                      </Label>
+                      <Select value={sortOption} onValueChange={(value: SortOption) => setSortOption(value)}>
+                        <SelectTrigger className="w-48" id="sort-select">
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {hasMatchedResumes && (
+                            <>
+                              <SelectItem value="fit-desc">Fit Score (High to Low)</SelectItem>
+                              <SelectItem value="fit-asc">Fit Score (Low to High)</SelectItem>
+                              <SelectItem value="similarity-desc">Similarity (High to Low)</SelectItem>
+                              <SelectItem value="similarity-asc">Similarity (Low to High)</SelectItem>
+                            </>
+                          )}
+                          <SelectItem value="name-asc">Name (A to Z)</SelectItem>
+                          <SelectItem value="name-desc">Name (Z to A)</SelectItem>
+                          <SelectItem value="date-desc">Upload Date (Newest First)</SelectItem>
+                          <SelectItem value="date-asc">Upload Date (Oldest First)</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+                  </div>
+                )}
+              </CardHeader>
+
+              <CardContent>
+                {resumes.length === 0 ? (
+                  <div className="text-center py-12">
+                    <UserIcon className="h-16 w-16 text-slate-300 mx-auto mb-4" />
+                    <h3 className="text-lg font-medium text-slate-900 dark:text-slate-100 mb-2">No candidates yet</h3>
+                    <p className="text-slate-600 dark:text-slate-400 mb-6">
+                      Upload your first resume to get started with AI matching
+                    </p>
+                  </div>
+                ) : (
+                  <div className="space-y-4">
+                    {/* Select All Control */}
+                    <div className="flex items-center gap-3 pb-3 border-b border-slate-200">
+                      <input
+                        type="checkbox"
+                        checked={allSelected}
+                        onChange={toggleSelectAll}
+                        className="rounded border-gray-300"
+                      />
+                      <span className="text-sm font-medium text-slate-700">
+                        {allSelected ? "Deselect All" : "Select All"}
+                      </span>
+                      {hasMatchedResumes && (
+                        <Badge variant="outline" className="text-xs ml-auto">
+                          {resumesWithStatus.filter((r) => r.isMatched).length} analyzed
+                        </Badge>
+                      )}
+                    </div>
+
+                    {/* Unified Resume List */}
+                    {sortedResumes.map((resume) => (
+                      <div key={resume.id} className="border border-slate-200 rounded-lg overflow-hidden">
+                        {/* Main Resume Row */}
+                        <div className="flex items-center justify-between p-4 bg-white hover:bg-slate-50 transition-colors">
+                          <div className="flex items-center gap-3">
+                            <input
+                              type="checkbox"
+                              checked={resume.selected || false}
+                              onChange={() => toggleResumeSelection(resume.id)}
+                              className="rounded border-gray-300"
+                            />
+                            <UserIcon className="h-5 w-5 text-slate-400" />
+                            <div>
+                              <p className="font-medium text-slate-900">{resume.candidate}</p>
+                              <p className="text-sm text-slate-500">Uploaded {formatDate(resume.when)}</p>
+                            </div>
+                          </div>
+
+                          <div className="flex items-center gap-2">
+                            {/* Match Status & Scores */}
+                            {resume.isMatched && resume.matchResult ? (
+                              <div className="flex items-center gap-2">
+                                <Badge variant="outline" className="text-xs">
+                                  Sim: {(resume.matchResult.similarity * 100).toFixed(1)}%
+                                </Badge>
+                                <Badge
+                                  className={getScoreBadgeColor(
+                                    resume.matchResult.fitScore !== undefined
+                                      ? resume.matchResult.fitScore
+                                      : resume.matchResult.similarity
+                                  )}
+                                >
+                                  Fit:{" "}
+                                  {(
+                                    (resume.matchResult.fitScore !== undefined
+                                      ? resume.matchResult.fitScore
+                                      : resume.matchResult.similarity) * 100
+                                  ).toFixed(1)}
+                                  %
+                                </Badge>
+                                <Button
+                                  variant="ghost"
+                                  size="sm"
+                                  onClick={() => toggleDetails(resume.id)}
+                                  className="text-slate-600 hover:text-slate-900"
+                                >
+                                  {expandedDetails[resume.id] ? (
+                                    <ChevronUpIcon className="h-4 w-4" />
+                                  ) : (
+                                    <ChevronDownIcon className="h-4 w-4" />
+                                  )}
+                                </Button>
+                              </div>
+                            ) : (
+                              <Badge variant="outline" className="border-orange-200 text-orange-700">
+                                ⏳ Pending Analysis
+                              </Badge>
+                            )}
+
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => handleDeleteResume(resume)}
+                              disabled={deleting === resume.id}
+                              className="text-red-600 hover:text-red-700 hover:bg-red-50"
+                            >
+                              <Trash2Icon className="h-4 w-4" />
+                            </Button>
+                          </div>
+                        </div>
+
+                        {/* Expandable Analysis Details */}
+                        {resume.isMatched && resume.matchResult && expandedDetails[resume.id] && (
+                          <div className="border-t border-slate-200 bg-slate-50 p-4">
+                            <div className="space-y-4">
+                              {/* Summary */}
+                              <div>
+                                <h5 className="text-sm font-medium text-slate-900 mb-2">Analysis Summary</h5>
+                                <p className="text-sm text-slate-700 bg-white p-3 rounded border">
+                                  {resume.matchResult.summary || "Analysis completed successfully"}
+                                </p>
+                              </div>
+
+                              {/* Skills Grid */}
+                              <div className="grid md:grid-cols-2 gap-4">
+                                {/* Matching Skills */}
+                                {resume.matchResult.matching_skills &&
+                                  resume.matchResult.matching_skills.length > 0 && (
+                                    <div>
+                                      <h5 className="text-sm font-medium text-green-700 mb-2">
+                                        ✅ Matching Skills ({resume.matchResult.matching_skills.length})
+                                      </h5>
+                                      <div className="flex flex-wrap gap-1">
+                                        {(expandedMatching[resume.id]
+                                          ? resume.matchResult.matching_skills
+                                          : resume.matchResult.matching_skills.slice(0, 4)
+                                        ).map((skill, index) => (
+                                          <Badge
+                                            key={index}
+                                            variant="secondary"
+                                            className="bg-green-100 text-green-800 text-xs"
+                                          >
+                                            {skill}
+                                          </Badge>
+                                        ))}
+                                        {resume.matchResult.matching_skills.length > 4 && (
+                                          <button
+                                            onClick={() => toggleMatchingSkills(resume.id)}
+                                            className="inline-flex items-center px-2 py-1 text-xs font-medium text-green-800 bg-green-100 border border-green-200 rounded hover:bg-green-200 transition-colors"
+                                          >
+                                            {expandedMatching[resume.id]
+                                              ? "Show less"
+                                              : `+${resume.matchResult.matching_skills.length - 4} more`}
+                                          </button>
+                                        )}
+                                      </div>
+                                    </div>
+                                  )}
+
+                                {/* Missing Skills */}
+                                {resume.matchResult.missing_skills && resume.matchResult.missing_skills.length > 0 && (
+                                  <div>
+                                    <h5 className="text-sm font-medium text-orange-700 mb-2">
+                                      ⚠️ Missing Skills ({resume.matchResult.missing_skills.length})
+                                    </h5>
+                                    <div className="flex flex-wrap gap-1">
+                                      {(expandedMissing[resume.id]
+                                        ? resume.matchResult.missing_skills
+                                        : resume.matchResult.missing_skills.slice(0, 4)
+                                      ).map((skill, index) => (
+                                        <Badge
+                                          key={index}
+                                          variant="secondary"
+                                          className="bg-orange-100 text-orange-800 text-xs"
+                                        >
+                                          {skill}
+                                        </Badge>
+                                      ))}
+                                      {resume.matchResult.missing_skills.length > 4 && (
+                                        <button
+                                          onClick={() => toggleMissingSkills(resume.id)}
+                                          className="inline-flex items-center px-2 py-1 text-xs font-medium text-orange-800 bg-orange-100 border border-orange-200 rounded hover:bg-orange-200 transition-colors"
+                                        >
+                                          {expandedMissing[resume.id]
+                                            ? "Show less"
+                                            : `+${resume.matchResult.missing_skills.length - 4} more`}
+                                        </button>
+                                      )}
+                                    </div>
+                                  </div>
+                                )}
+                              </div>
+                            </div>
+                          </div>
+                        )}
                       </div>
                     ))}
                   </div>
@@ -450,139 +843,17 @@ export default function JobDetailPage({ params }: { params: Promise<{ jobId: str
               </CardContent>
             </Card>
 
-            {/* Matching */}
-            {resumes.length > 0 && (
+            {/* Re-analyze All */}
+            {hasMatchedResumes && (
               <Card>
                 <CardHeader>
-                  <div className="flex items-center justify-between">
-                    <CardTitle>AI Matching</CardTitle>
-                    <div className="flex gap-2">
-                      <Button onClick={() => runMatching()} disabled={shouldDisableMatching()} size="sm">
-                        {matching ? "Analyzing..." : getMatchingButtonText()}
-                      </Button>
-                      {matchResults.length > 0 && (
-                        <Button onClick={() => runMatching(true)} disabled={matching} variant="outline" size="sm">
-                          Re-analyze All
-                        </Button>
-                      )}
-                    </div>
-                  </div>
-                  <CardDescription>Analyze how well candidates match this job using AI</CardDescription>
+                  <CardTitle className="text-lg">Analysis Options</CardTitle>
+                  <CardDescription>Re-run analysis for all candidates with updated algorithms</CardDescription>
                 </CardHeader>
                 <CardContent>
-                  {matching ? (
-                    <div className="text-center py-8">
-                      <div className="animate-pulse">Analyzing candidates...</div>
-                    </div>
-                  ) : matchResults.length > 0 ? (
-                    <div className="space-y-4">
-                      <div className="flex items-center gap-2 mb-4">
-                        <CheckCircleIcon className="h-5 w-5 text-green-500" />
-                        <span className="text-sm font-medium">Found {matchResults.length} matches</span>
-                      </div>
-                      {matchResults.map((result) => (
-                        <div key={result.resumeId} className="p-4 bg-slate-50 dark:bg-slate-800 rounded-lg">
-                          <div className="flex items-center justify-between mb-3">
-                            <h4 className="font-medium">
-                              {resumes.find((r) => r.id === result.resumeId)?.candidate || "Unknown"}
-                            </h4>
-                            <div className="flex gap-2">
-                              <Badge variant="outline" className="text-xs">
-                                Sim: {(result.similarity * 100).toFixed(1)}%
-                              </Badge>
-                              <Badge
-                                className={getScoreBadgeColor(
-                                  result.fitScore !== undefined ? result.fitScore : result.similarity
-                                )}
-                              >
-                                Fit:{" "}
-                                {((result.fitScore !== undefined ? result.fitScore : result.similarity) * 100).toFixed(
-                                  1
-                                )}
-                                %
-                              </Badge>
-                            </div>
-                          </div>
-
-                          <p className="text-sm text-slate-600 dark:text-slate-400 mb-3">
-                            {result.summary || "Analysis completed"}
-                          </p>
-
-                          {/* Matching Skills */}
-                          {result.matching_skills && result.matching_skills.length > 0 && (
-                            <div className="mb-3">
-                              <h5 className="text-xs font-medium text-green-700 dark:text-green-400 mb-1">
-                                ✅ Matching Skills ({result.matching_skills.length})
-                              </h5>
-                              <div className="flex flex-wrap gap-1">
-                                {(expandedMatching[result.resumeId]
-                                  ? result.matching_skills
-                                  : result.matching_skills.slice(0, 6)
-                                ).map((skill, index) => (
-                                  <Badge
-                                    key={index}
-                                    variant="secondary"
-                                    className="bg-green-100 text-green-800 text-xs"
-                                  >
-                                    {skill}
-                                  </Badge>
-                                ))}
-                                {result.matching_skills.length > 6 && (
-                                  <button
-                                    onClick={() => toggleMatchingSkills(result.resumeId)}
-                                    className="inline-flex items-center px-2 py-1 text-xs font-medium text-green-800 bg-green-100 border border-green-200 rounded-md hover:bg-green-200 transition-colors"
-                                  >
-                                    {expandedMatching[result.resumeId]
-                                      ? "Show less"
-                                      : `+${result.matching_skills.length - 6} more`}
-                                  </button>
-                                )}
-                              </div>
-                            </div>
-                          )}
-
-                          {/* Missing Skills */}
-                          {result.missing_skills && result.missing_skills.length > 0 && (
-                            <div>
-                              <h5 className="text-xs font-medium text-orange-700 dark:text-orange-400 mb-1">
-                                ⚠️ Missing Skills ({result.missing_skills.length})
-                              </h5>
-                              <div className="flex flex-wrap gap-1">
-                                {(expandedMissing[result.resumeId]
-                                  ? result.missing_skills
-                                  : result.missing_skills.slice(0, 6)
-                                ).map((skill, index) => (
-                                  <Badge
-                                    key={index}
-                                    variant="secondary"
-                                    className="bg-orange-100 text-orange-800 text-xs"
-                                  >
-                                    {skill}
-                                  </Badge>
-                                ))}
-                                {result.missing_skills.length > 6 && (
-                                  <button
-                                    onClick={() => toggleMissingSkills(result.resumeId)}
-                                    className="inline-flex items-center px-2 py-1 text-xs font-medium text-orange-800 bg-orange-100 border border-orange-200 rounded-md hover:bg-orange-200 transition-colors"
-                                  >
-                                    {expandedMissing[result.resumeId]
-                                      ? "Show less"
-                                      : `+${result.missing_skills.length - 6} more`}
-                                  </button>
-                                )}
-                              </div>
-                            </div>
-                          )}
-                        </div>
-                      ))}
-                    </div>
-                  ) : (
-                    <div className="text-center py-8">
-                      <p className="text-slate-600 dark:text-slate-400">
-                        Click &quot;Run Matching&quot; to analyze candidates
-                      </p>
-                    </div>
-                  )}
+                  <Button onClick={() => runMatching(true)} disabled={matching} variant="outline" className="w-full">
+                    {matching ? "Re-analyzing All Candidates..." : "Re-analyze All Candidates"}
+                  </Button>
                 </CardContent>
               </Card>
             )}

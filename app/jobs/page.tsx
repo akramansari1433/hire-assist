@@ -17,7 +17,7 @@ import {
 } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { PlusIcon, BriefcaseIcon, CalendarIcon, SearchIcon, ArrowRightIcon } from "lucide-react";
+import { PlusIcon, BriefcaseIcon, CalendarIcon, SearchIcon, ArrowRightIcon, Trash2Icon } from "lucide-react";
 
 interface Job {
   id: number;
@@ -30,9 +30,12 @@ export default function JobsPage() {
   const [jobs, setJobs] = useState<Job[]>([]);
   const [loading, setLoading] = useState(true);
   const [creating, setCreating] = useState(false);
+  const [deleting, setDeleting] = useState<number | null>(null);
   const [newJob, setNewJob] = useState({ title: "", jdText: "" });
   const [searchTerm, setSearchTerm] = useState("");
   const [isDialogOpen, setIsDialogOpen] = useState(false);
+  const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
+  const [jobToDelete, setJobToDelete] = useState<Job | null>(null);
 
   useEffect(() => {
     fetchJobs();
@@ -63,13 +66,48 @@ export default function JobsPage() {
 
       if (response.ok) {
         setNewJob({ title: "", jdText: "" });
-        setIsDialogOpen(false); // Close the dialog after successful creation
+        setIsDialogOpen(false);
         fetchJobs();
       }
     } catch (error) {
       console.error("Error creating job:", error);
     } finally {
       setCreating(false);
+    }
+  };
+
+  const handleDeleteJob = async (job: Job) => {
+    setJobToDelete(job);
+    setDeleteConfirmOpen(true);
+  };
+
+  const confirmDeleteJob = async () => {
+    if (!jobToDelete) return;
+
+    setDeleting(jobToDelete.id);
+    try {
+      const response = await fetch(`/api/jobs/${jobToDelete.id}`, {
+        method: "DELETE",
+      });
+
+      if (response.ok) {
+        const result = await response.json();
+        console.log(
+          `Job deleted: ${result.deletedJob.title}, ${result.deletedResumes} resumes, ${result.deletedComparisons} comparisons`
+        );
+        fetchJobs(); // Refresh the list
+      } else {
+        const error = await response.json();
+        console.error("Delete failed:", error);
+        alert(`Failed to delete job: ${error.error}`);
+      }
+    } catch (error) {
+      console.error("Error deleting job:", error);
+      alert("Failed to delete job. Please try again.");
+    } finally {
+      setDeleting(null);
+      setDeleteConfirmOpen(false);
+      setJobToDelete(null);
     }
   };
 
@@ -148,6 +186,38 @@ export default function JobsPage() {
           </Dialog>
         </div>
 
+        {/* Delete Confirmation Dialog */}
+        <Dialog open={deleteConfirmOpen} onOpenChange={setDeleteConfirmOpen}>
+          <DialogContent>
+            <DialogHeader>
+              <DialogTitle>Delete Job</DialogTitle>
+              <DialogDescription>
+                Are you sure you want to delete &quot;{jobToDelete?.title}&quot;? This will permanently delete:
+                <br />
+                <br />
+                • The job posting
+                <br />
+                • All uploaded resumes for this job
+                <br />
+                • All AI comparisons and analysis
+                <br />
+                • All vector embeddings in Pinecone
+                <br />
+                <br />
+                This action cannot be undone.
+              </DialogDescription>
+            </DialogHeader>
+            <div className="flex gap-3 justify-end">
+              <Button variant="outline" onClick={() => setDeleteConfirmOpen(false)} disabled={deleting !== null}>
+                Cancel
+              </Button>
+              <Button variant="destructive" onClick={confirmDeleteJob} disabled={deleting !== null}>
+                {deleting === jobToDelete?.id ? "Deleting..." : "Delete Job"}
+              </Button>
+            </div>
+          </DialogContent>
+        </Dialog>
+
         <Tabs defaultValue="all" className="w-full">
           <div className="flex items-center justify-between mb-6">
             <TabsList className="grid w-fit grid-cols-3">
@@ -206,6 +276,15 @@ export default function JobsPage() {
                           </div>
                           <CardDescription className="line-clamp-2">{job.jdText}</CardDescription>
                         </div>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => handleDeleteJob(job)}
+                          disabled={deleting === job.id}
+                          className="text-red-600 hover:text-red-700 hover:bg-red-50"
+                        >
+                          <Trash2Icon className="h-4 w-4" />
+                        </Button>
                       </div>
                     </CardHeader>
                     <CardContent>
@@ -243,7 +322,18 @@ export default function JobsPage() {
                           <BriefcaseIcon className="h-5 w-5 text-blue-500" />
                           {job.title}
                         </CardTitle>
-                        <Badge variant="outline">{formatDate(job.createdAt)}</Badge>
+                        <div className="flex items-center gap-2">
+                          <Badge variant="outline">{formatDate(job.createdAt)}</Badge>
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => handleDeleteJob(job)}
+                            disabled={deleting === job.id}
+                            className="text-red-600 hover:text-red-700 hover:bg-red-50"
+                          >
+                            <Trash2Icon className="h-4 w-4" />
+                          </Button>
+                        </div>
                       </div>
                       <CardDescription className="line-clamp-1">{job.jdText}</CardDescription>
                     </CardHeader>
@@ -262,7 +352,18 @@ export default function JobsPage() {
                         <BriefcaseIcon className="h-5 w-5 text-green-500" />
                         {job.title}
                       </CardTitle>
-                      <Badge className="bg-green-100 text-green-800">Active</Badge>
+                      <div className="flex items-center gap-2">
+                        <Badge className="bg-green-100 text-green-800">Active</Badge>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => handleDeleteJob(job)}
+                          disabled={deleting === job.id}
+                          className="text-red-600 hover:text-red-700 hover:bg-red-50"
+                        >
+                          <Trash2Icon className="h-4 w-4" />
+                        </Button>
+                      </div>
                     </div>
                     <CardDescription className="line-clamp-1">{job.jdText}</CardDescription>
                   </CardHeader>
