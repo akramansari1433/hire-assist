@@ -92,3 +92,59 @@ export function ResultsTable({ matchResults }: ResultsTableProps) {
     </div>
   );
 }
+
+export function ResultsTableSkeleton() {
+  return (
+    <div className="overflow-x-auto">
+      <table className="w-full border-collapse">
+        <thead>
+          <tr className="border-b">
+            <th className="text-left p-3 font-medium">Rank</th>
+            <th className="text-left p-3 font-medium">Candidate</th>
+            <th className="text-left p-3 font-medium">Fit Score</th>
+            <th className="text-left p-3 font-medium">Similarity</th>
+            <th className="text-left p-3 font-medium">Grade</th>
+            <th className="text-left p-3 font-medium">Matching Skills</th>
+            <th className="text-left p-3 font-medium">Missing Skills</th>
+          </tr>
+        </thead>
+        <tbody>
+          {[...Array(5)].map((_, i) => (
+            <tr key={i} className="border-b animate-pulse">
+              <td className="p-3">
+                <div className="h-6 w-10 bg-slate-200 rounded" />
+              </td>
+              <td className="p-3">
+                <div className="h-4 w-32 bg-slate-200 rounded mb-2" />
+                <div className="h-3 w-48 bg-slate-100 rounded" />
+              </td>
+              <td className="p-3">
+                <div className="h-6 w-16 bg-slate-200 rounded" />
+              </td>
+              <td className="p-3">
+                <div className="h-6 w-16 bg-slate-100 rounded" />
+              </td>
+              <td className="p-3">
+                <div className="h-4 w-16 bg-slate-200 rounded" />
+              </td>
+              <td className="p-3">
+                <div className="flex gap-1">
+                  <div className="h-5 w-12 bg-slate-200 rounded" />
+                  <div className="h-5 w-12 bg-slate-100 rounded" />
+                  <div className="h-5 w-12 bg-slate-100 rounded" />
+                </div>
+              </td>
+              <td className="p-3">
+                <div className="flex gap-1">
+                  <div className="h-5 w-12 bg-slate-200 rounded" />
+                  <div className="h-5 w-12 bg-slate-100 rounded" />
+                  <div className="h-5 w-12 bg-slate-100 rounded" />
+                </div>
+              </td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+  );
+}

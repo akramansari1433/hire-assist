@@ -4,13 +4,14 @@ import { ArrowLeftIcon } from "lucide-react";
 import { Job, Analytics } from "../types";
 
 interface HeaderProps {
-  job: Job;
+  job: Job | null;
   analytics: Analytics;
   matching: boolean;
   onRunMatching: () => void;
+  loading?: boolean;
 }
 
-export function Header({ job, analytics, matching, onRunMatching }: HeaderProps) {
+export function Header({ job, analytics, matching, onRunMatching, loading }: HeaderProps) {
   return (
     <div className="mb-6">
       {/* Navigation Breadcrumb */}
@@ -26,7 +27,7 @@ export function Header({ job, analytics, matching, onRunMatching }: HeaderProps)
           </Button>
         </Link>
         <span className="text-slate-400">/</span>
-        <Link href={`/jobs/${job.id}`} className="group">
+        <Link href={`/jobs/${job?.id}`} className="group">
           <Button
             variant="ghost"
             size="sm"
@@ -44,24 +45,42 @@ export function Header({ job, analytics, matching, onRunMatching }: HeaderProps)
         <div>
           <h1 className="text-3xl font-bold text-slate-900 dark:text-slate-100 mb-2">Analysis Dashboard</h1>
           <div className="flex items-center gap-4 text-sm text-slate-600 dark:text-slate-400">
-            <span className="font-medium">{job.title}</span>
-            <span>•</span>
-            <span>
-              {analytics.total} candidate{analytics.total !== 1 ? "s" : ""}
-            </span>
-            <span>•</span>
-            <span className="text-green-600 font-medium">{analytics.excellent} excellent</span>
-            {analytics.averageScore > 0 && (
+            {loading || !job ? (
               <>
+                <div className="h-5 w-32 bg-slate-200 rounded animate-pulse" />
                 <span>•</span>
-                <span className="text-blue-600 font-medium">{(analytics.averageScore * 100).toFixed(1)}% avg</span>
+                <div className="h-5 w-24 bg-slate-200 rounded animate-pulse" />
+                <span>•</span>
+                <div className="h-5 w-24 bg-slate-200 rounded animate-pulse" />
+                <span>•</span>
+                <div className="h-5 w-20 bg-slate-200 rounded animate-pulse" />
+              </>
+            ) : (
+              <>
+                <span className="font-medium">{job.title}</span>
+                <span>•</span>
+                <span>
+                  {analytics.total} candidate{analytics.total !== 1 ? "s" : ""}
+                </span>
+                <span>•</span>
+                <span className="text-green-600 font-medium">{analytics.excellent} excellent</span>
+                {analytics.averageScore > 0 && (
+                  <>
+                    <span>•</span>
+                    <span className="text-blue-600 font-medium">{(analytics.averageScore * 100).toFixed(1)}% avg</span>
+                  </>
+                )}
               </>
             )}
           </div>
         </div>
-        <Button onClick={onRunMatching} disabled={matching} className="bg-blue-600 hover:bg-blue-700">
-          {matching ? "Analyzing..." : "Run New Analysis"}
-        </Button>
+        {loading ? (
+          <div className="h-10 w-44 bg-slate-200 rounded animate-pulse" />
+        ) : (
+          <Button onClick={onRunMatching} disabled={matching} className="bg-blue-600 hover:bg-blue-700">
+            {matching ? "Analyzing..." : "Run New Analysis"}
+          </Button>
+        )}
       </div>
     </div>
   );

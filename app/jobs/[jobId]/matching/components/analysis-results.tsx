@@ -6,8 +6,8 @@ import { SortSelect } from "./controls/sort-select";
 import { FilterSelect } from "./controls/filter-select";
 import { ViewModeToggle } from "./controls/view-mode-toggle";
 import { ExportActions } from "./controls/export-actions";
-import { ResultsTable } from "./results/results-table";
-import { ResultsCards } from "./results/results-cards";
+import { ResultsTable, ResultsTableSkeleton } from "./results/results-table";
+import { ResultsCards, ResultsCardsSkeleton } from "./results/results-cards";
 import { MatchResult, SortOption, ViewMode, FilterOption, PaginationState, Analytics } from "../types";
 
 interface AnalysisResultsProps {
@@ -32,6 +32,7 @@ interface AnalysisResultsProps {
   onPageSizeChange: (size: number) => void;
   onExportCSV: () => void;
   onGeneratePDF: () => void;
+  loading: boolean;
 }
 
 export function AnalysisResults({
@@ -56,6 +57,7 @@ export function AnalysisResults({
   onPageSizeChange,
   onExportCSV,
   onGeneratePDF,
+  loading,
 }: AnalysisResultsProps) {
   return (
     <Card>
@@ -68,25 +70,28 @@ export function AnalysisResults({
           <ViewModeToggle value={viewMode} onChange={onViewModeChange} />
         </div>
 
-        {/* Advanced Controls */}
-        {hasAnyResults && (
-          <div className="flex flex-wrap items-center gap-4 pt-4 border-t">
-            <SearchInput value={search} onChange={onSearchChange} />
-            <SortSelect value={sortOption} onChange={onSortChange} />
-            <FilterSelect value={filterOption} onChange={onFilterChange} />
-            <div className="ml-auto">
-              <ExportActions
-                onExportCSV={onExportCSV}
-                onGeneratePDF={onGeneratePDF}
-                disabled={matchResults.length === 0}
-              />
-            </div>
+        <div className="flex flex-wrap items-center gap-4 pt-4 border-t">
+          <SearchInput value={search} onChange={onSearchChange} />
+          <SortSelect value={sortOption} onChange={onSortChange} />
+          <FilterSelect value={filterOption} onChange={onFilterChange} />
+          <div className="ml-auto">
+            <ExportActions
+              onExportCSV={onExportCSV}
+              onGeneratePDF={onGeneratePDF}
+              disabled={matchResults.length === 0}
+            />
           </div>
-        )}
+        </div>
       </CardHeader>
 
       <CardContent>
-        {!hasAnyResults && pagination.totalItems === 0 ? (
+        {loading ? (
+          viewMode === "table" ? (
+            <ResultsTableSkeleton />
+          ) : (
+            <ResultsCardsSkeleton />
+          )
+        ) : !hasAnyResults && pagination.totalItems === 0 ? (
           <>
             <div className="text-center py-8">
               <p className="text-slate-600 dark:text-slate-400 mb-4">No candidates found matching your criteria.</p>

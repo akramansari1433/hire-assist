@@ -4,12 +4,12 @@ import { Analytics } from "../../types";
 
 interface AnalyticsOverviewProps {
   analytics: Analytics;
-  hasAnyResults: boolean;
+  loading?: boolean;
 }
 
-export function AnalyticsOverview({ analytics, hasAnyResults }: AnalyticsOverviewProps) {
-  if (!hasAnyResults) {
-    return null;
+export function AnalyticsOverview({ analytics, loading }: AnalyticsOverviewProps) {
+  if (loading) {
+    return <AnalyticsOverviewSkeleton />;
   }
 
   return (
@@ -69,6 +69,26 @@ export function AnalyticsOverview({ analytics, hasAnyResults }: AnalyticsOvervie
           </div>
         </CardContent>
       </Card>
+    </div>
+  );
+}
+
+export function AnalyticsOverviewSkeleton() {
+  return (
+    <div className="grid grid-cols-1 md:grid-cols-5 gap-4 mb-6">
+      {[...Array(5)].map((_, i) => (
+        <Card key={i}>
+          <CardContent className="pt-6 animate-pulse">
+            <div className="flex items-center justify-between">
+              <div>
+                <div className="h-6 w-20 bg-slate-200 rounded mb-2" />
+                <div className="h-4 w-24 bg-slate-100 rounded" />
+              </div>
+              <div className="h-8 w-8 bg-slate-200 rounded-full" />
+            </div>
+          </CardContent>
+        </Card>
+      ))}
     </div>
   );
 }

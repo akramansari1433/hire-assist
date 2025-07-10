@@ -188,19 +188,7 @@ export default function MatchingPage({ params }: { params: Promise<{ jobId: stri
     setExpandedMissing((prev) => ({ ...prev, [resumeId]: !prev[resumeId] }));
   };
 
-  if (loading || matchResultsLoading) {
-    return (
-      <div className="min-h-screen bg-gradient-to-br from-slate-50 to-slate-100 dark:from-slate-900 dark:to-slate-800">
-        <div className="container mx-auto px-4 py-8">
-          <div className="text-center py-12">
-            <div className="animate-pulse">Loading...</div>
-          </div>
-        </div>
-      </div>
-    );
-  }
-
-  if (!job) {
+  if (!loading && !job) {
     return (
       <div className="min-h-screen bg-gradient-to-br from-slate-50 to-slate-100 dark:from-slate-900 dark:to-slate-800">
         <div className="container mx-auto px-4 py-8">
@@ -215,30 +203,12 @@ export default function MatchingPage({ params }: { params: Promise<{ jobId: stri
     );
   }
 
-  if (!matchResults.length && !matchResultsLoading) {
-    return (
-      <div className="min-h-screen bg-gradient-to-br from-slate-50 to-slate-100 dark:from-slate-900 dark:to-slate-800">
-        <div className="container mx-auto px-4 py-8">
-          <div className="text-center py-12">
-            <h1 className="text-2xl font-bold text-slate-900 dark:text-slate-100 mb-4">
-              No candidates found for this job yet.
-            </h1>
-            <p className="mb-4">Try uploading resumes or running the matching process.</p>
-            <Link href="/jobs">
-              <Button>Back to Jobs</Button>
-            </Link>
-          </div>
-        </div>
-      </div>
-    );
-  }
-
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-50 to-slate-100 dark:from-slate-900 dark:to-slate-800">
       <div className="container mx-auto px-4 py-8">
-        <Header job={job} analytics={analytics} matching={matching} onRunMatching={runMatching} />
+        <Header job={job} analytics={analytics} matching={matching} onRunMatching={runMatching} loading={loading} />
 
-        <AnalyticsOverview analytics={analytics} hasAnyResults={hasAnyResults} />
+        <AnalyticsOverview analytics={analytics} loading={loading} />
 
         <AnalysisResults
           matchResults={matchResults}
@@ -262,6 +232,7 @@ export default function MatchingPage({ params }: { params: Promise<{ jobId: stri
           onPageSizeChange={handlePageSizeChange}
           onExportCSV={() => exportToCSV({ job, matchResults, getScoreLabel })}
           onGeneratePDF={() => generatePDFReport({ job, analytics, matchResults, getScoreLabel })}
+          loading={matchResultsLoading || loading}
         />
       </div>
     </div>
