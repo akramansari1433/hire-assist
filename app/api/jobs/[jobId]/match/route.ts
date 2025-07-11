@@ -126,6 +126,8 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ job
       }
 
       const prompt = `
+      You are a JSON-only response API. Your task is to analyze a job description and resume, then output ONLY valid JSON with no additional text.
+
       Job Description:
       ${job.text}
 
@@ -134,19 +136,26 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ job
 
       Vector Similarity Score: ${(sim * 100).toFixed(1)}%
 
-      Based on the job description, resume content, and similarity score:
-      1) List skills that match between job and resume
-      2) List skills missing from the resume 
+      Instructions:
+      Analyze the job and resume to determine:
+      1) Skills that match between job and resume
+      2) Skills missing from the resume 
       3) One-sentence fit summary
-      4) Overall fit score from 0.0 to 1.0 considering job requirements, candidate qualifications, and similarity
+      4) Overall fit score (0.0 to 1.0) considering requirements, qualifications, and similarity
 
-      Respond JSON: { "matching_skills":[], "missing_skills":[], "summary":"", "fit_score": 0.0 }
-      `;
+      RESPOND WITH ONLY THE FOLLOWING JSON STRUCTURE:
+      {
+        "matching_skills": ["skill1", "skill2", ...],
+        "missing_skills": ["skill1", "skill2", ...],
+        "summary": "One sentence summary",
+        "fit_score": 0.85
+      }`;
 
       try {
         const { text } = await generateText({
           model: groq("llama-3.3-70b-versatile"),
           prompt: prompt,
+          temperature: 0.1, // Lower temperature for more consistent JSON formatting
         });
 
         // Clean the response to extract JSON content
@@ -158,11 +167,32 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ job
           cleanText = cleanText.replace(/^```\s*/, "").replace(/\s*```$/, "");
         }
 
-        const { matching_skills, missing_skills, summary, fit_score } = JSON.parse(cleanText);
+        // Additional cleaning: remove any text before { and after }
+        cleanText = cleanText.substring(cleanText.indexOf("{"), cleanText.lastIndexOf("}") + 1);
 
-        console.log("🚀 ~ POST ~ matching_skills:", fit_score);
+        let parsedResponse;
+        try {
+          parsedResponse = JSON.parse(cleanText);
+        } catch (jsonError) {
+          console.error(`❌ JSON parsing error for resume ${resumeId}:`, jsonError);
+          console.error("Raw response:", text);
+          throw new Error("Failed to parse LLM response as JSON");
+        }
+
+        const { matching_skills, missing_skills, summary, fit_score } = parsedResponse;
+
+        // Validate the parsed data
+        if (
+          !Array.isArray(matching_skills) ||
+          !Array.isArray(missing_skills) ||
+          typeof summary !== "string" ||
+          typeof fit_score !== "number"
+        ) {
+          throw new Error("Invalid response structure from LLM");
+        }
+
         // Ensure fit_score is valid, fallback to similarity if needed
-        const fitScore = typeof fit_score === "number" && fit_score >= 0 && fit_score <= 1 ? fit_score : sim;
+        const fitScore = fit_score >= 0 && fit_score <= 1 ? fit_score : sim;
 
         // persist
         await db.insert(comparisons).values({
