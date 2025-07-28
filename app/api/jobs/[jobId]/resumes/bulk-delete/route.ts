@@ -9,27 +9,22 @@ export async function DELETE(req: NextRequest, { params }: { params: Promise<{ j
   const jobIdNum = Number(jobId);
   const { resumeIds, deleteAll } = await req.json();
 
-  console.log(`🗑️ Starting bulk resume deletion for job ${jobId}`);
-  console.log(`📋 Delete all: ${deleteAll}, Resume IDs: ${resumeIds?.join(", ") || "none"}`);
-
   try {
     let targetResumeIds: number[] = [];
 
     if (deleteAll) {
-      // Get all resume IDs for this job
+      // get all resume IDs for this job
       const allResumes = await db.select({ id: resumes.id }).from(resumes).where(eq(resumes.jobId, jobIdNum));
 
       targetResumeIds = allResumes.map((r) => r.id);
-      console.log(`📄 Found ${targetResumeIds.length} resumes to delete (all)`);
     } else if (resumeIds && Array.isArray(resumeIds) && resumeIds.length > 0) {
-      // Validate that all provided resume IDs belong to this job
+      // validate that all provided resume IDs belong to this job
       const validResumes = await db
         .select({ id: resumes.id })
         .from(resumes)
         .where(and(eq(resumes.jobId, jobIdNum), inArray(resumes.id, resumeIds.map(Number))));
 
       targetResumeIds = validResumes.map((r) => r.id);
-      console.log(`📄 Found ${targetResumeIds.length} valid resumes to delete (selected)`);
 
       if (targetResumeIds.length !== resumeIds.length) {
         console.warn(`⚠️ Some resume IDs were invalid or don't belong to job ${jobId}`);
@@ -45,18 +40,7 @@ export async function DELETE(req: NextRequest, { params }: { params: Promise<{ j
       return NextResponse.json({ message: "No resumes to delete", deletedCount: 0 });
     }
 
-    // Get resume details for logging
-    const resumeDetails = await db
-      .select({ id: resumes.id, candidateName: resumes.candidateName })
-      .from(resumes)
-      .where(inArray(resumes.id, targetResumeIds));
-
-    console.log(
-      `📄 Resumes to delete:`,
-      resumeDetails.map((r) => `${r.id}: ${r.candidateName}`)
-    );
-
-    // 1. Delete all comparisons related to these resumes
+    // delete all comparisons related to these resumes
     const deletedComparisons = await db
       .delete(comparisons)
       .where(inArray(comparisons.resumeId, targetResumeIds))
@@ -64,24 +48,20 @@ export async function DELETE(req: NextRequest, { params }: { params: Promise<{ j
 
     console.log(`🔗 Deleted ${deletedComparisons.length} comparisons`);
 
-    // 2. Delete resume embeddings from Pinecone
+    // delete resume embeddings from Pinecone
     if (deleteAll) {
-      // If deleting all, use the optimized function that filters by jobId
+      // if deleting all, use the optimized function that filters by jobId
       await deleteAllJobResumeEmbeddings(jobIdNum);
     } else {
-      // If deleting specific resumes, delete each one individually
+      // if deleting specific resumes, delete each one individually
       await deleteBulkResumeEmbeddings(targetResumeIds);
     }
 
-    // 3. Delete resumes from PostgreSQL
+    // delete resumes from PostgreSQL
     const deletedResumes = await db
       .delete(resumes)
       .where(inArray(resumes.id, targetResumeIds))
       .returning({ id: resumes.id, candidateName: resumes.candidateName });
-
-    console.log(`📄 Deleted ${deletedResumes.length} resumes from database`);
-
-    console.log(`🎉 Bulk resume deletion completed for job ${jobId}`);
 
     return NextResponse.json({
       success: true,

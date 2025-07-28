@@ -21,7 +21,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ job
   }
 
   try {
-    // fetch job text and embedding from Pinecone
+    // fetch job text from db
     const [job] = await db
       .select({ text: jobs.jdText })
       .from(jobs)
@@ -51,7 +51,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ job
       return NextResponse.json({ error: "No resumes found for this job" }, { status: 404 });
     }
 
-    // vector query
+    // fetch resume embeddings for this job from Pinecone and aggregate best per resume
     const resp = await index.namespace("resumes").query({
       vector: jobVector,
       topK,
@@ -73,15 +73,15 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ job
         return;
       }
 
-      const rid = metadata.resumeId as number;
-      best[rid] = Math.max(best[rid] ?? 0, m.score!);
+      const resumeId = metadata.resumeId as number;
+      best[resumeId] = Math.max(best[resumeId] ?? 0, m.score!);
     });
 
     if (Object.keys(best).length === 0) {
       return NextResponse.json({ error: "No matches found" }, { status: 404 });
     }
 
-    // Check for existing comparisons to avoid re-processing
+    // check for existing comparisons to avoid re-processing
     const existingComparisons = await db
       .select({
         resumeId: comparisons.resumeId,
@@ -94,7 +94,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ job
       .from(comparisons)
       .where(eq(comparisons.jobId, Number(jobId)));
 
-    // Create a map of existing comparisons by resumeId
+    // create a map of existing comparisons by resumeId
     const existingMap = new Map(existingComparisons.map((comp) => [comp.resumeId, comp]));
 
     // enrich with LLM (only for new resumes)
@@ -104,7 +104,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ job
     for (const [rid, sim] of Object.entries(best)) {
       const resumeId = Number(rid);
 
-      // Check if we already have a comparison for this resume
+      // check if we already have a comparison for this resume
       if (existingMap.has(resumeId)) {
         const existing = existingMap.get(resumeId)!;
 
@@ -158,16 +158,16 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ job
           temperature: 0.1, // Lower temperature for more consistent JSON formatting
         });
 
-        // Clean the response to extract JSON content
+        // clean the response to extract JSON content
         let cleanText = text.trim();
-        // Remove markdown code block formatting if present
+        // remove markdown code block formatting if present
         if (cleanText.startsWith("```json")) {
           cleanText = cleanText.replace(/^```json\s*/, "").replace(/\s*```$/, "");
         } else if (cleanText.startsWith("```")) {
           cleanText = cleanText.replace(/^```\s*/, "").replace(/\s*```$/, "");
         }
 
-        // Additional cleaning: remove any text before { and after }
+        // additional cleaning: remove any text before { and after }
         cleanText = cleanText.substring(cleanText.indexOf("{"), cleanText.lastIndexOf("}") + 1);
 
         let parsedResponse;
@@ -209,14 +209,14 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ job
         rows.push({ resumeId, similarity: sim, fitScore, matching_skills, missing_skills, summary });
       } catch (gptError) {
         console.error(`❌ GPT error for resume ${resumeId}:`, gptError);
-        // Add a fallback result
+        // add a fallback result
         rows.push({
           resumeId,
           similarity: sim,
           fitScore: sim, // fallback to similarity score
           matching_skills: [],
           missing_skills: [],
-          summary: "Analysis failed, but candidate shows good similarity score.",
+          summary: "Analysis failed.",
         });
       }
     }

@@ -9,10 +9,8 @@ export async function DELETE(req: NextRequest, { params }: { params: Promise<{ j
   const jobIdNum = Number(jobId);
   const resumeIdNum = Number(resumeId);
 
-  console.log(`🗑️ Starting resume deletion for resume ${resumeId} in job ${jobId}`);
-
   try {
-    // 1. Check if resume exists and belongs to the specified job
+    // check if resume exists and belongs to the specified job
     const [resume] = await db
       .select({ id: resumes.id, candidateName: resumes.candidateName, jobId: resumes.jobId })
       .from(resumes)
@@ -23,9 +21,7 @@ export async function DELETE(req: NextRequest, { params }: { params: Promise<{ j
       return NextResponse.json({ error: "Resume not found" }, { status: 404 });
     }
 
-    console.log(`📄 Found resume: "${resume.candidateName}"`);
-
-    // 2. Delete all comparisons related to this resume
+    // delete all comparisons related to this resume
     const deletedComparisons = await db
       .delete(comparisons)
       .where(eq(comparisons.resumeId, resumeIdNum))
@@ -33,13 +29,11 @@ export async function DELETE(req: NextRequest, { params }: { params: Promise<{ j
 
     console.log(`🔗 Deleted ${deletedComparisons.length} comparisons for resume ${resumeId}`);
 
-    // 3. Delete resume embeddings from Pinecone
+    // delete resume embeddings from Pinecone
     await deleteResumeEmbeddings(resumeIdNum);
 
-    // 4. Delete resume from PostgreSQL
+    // delete resume from PostgreSQL
     await db.delete(resumes).where(eq(resumes.id, resumeIdNum));
-
-    console.log(`🎉 Resume ${resumeId} ("${resume.candidateName}") deleted successfully`);
 
     return NextResponse.json({
       success: true,

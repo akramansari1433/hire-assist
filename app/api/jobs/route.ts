@@ -14,18 +14,13 @@ export async function GET() {
 export async function POST(req: NextRequest) {
   const { title, jdText } = await req.json();
 
-  console.log(`📋 Creating new job: "${title}"`);
-
   if (!title || !jdText) {
-    console.error("❌ Missing required fields:", { title: !!title, jdText: !!jdText });
     return NextResponse.json({ error: "title and jdText required" }, { status: 400 });
   }
 
   try {
     // embed JD
-    console.log("🔮 Creating embedding for job description...");
     const vector = await embed(jdText);
-    console.log("✅ Job embedding created, length:", vector.length);
 
     // insert into Postgres
     console.log("💾 Storing job in database...");
@@ -39,7 +34,6 @@ export async function POST(req: NextRequest) {
     console.log("✅ Job stored with ID:", job.id);
 
     // upsert into Pinecone
-    console.log("🔍 Storing job embedding in Pinecone...");
     await upsertVectors(
       [
         {
@@ -50,12 +44,9 @@ export async function POST(req: NextRequest) {
       ],
       "jobs"
     );
-    console.log("✅ Job embedding stored in Pinecone");
 
-    console.log("🎉 Job creation successful:", title);
     return NextResponse.json({ id: job.id });
   } catch (error) {
-    console.error("💥 Job creation failed:", error);
     return NextResponse.json(
       {
         error: "Job creation failed",

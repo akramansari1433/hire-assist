@@ -7,31 +7,31 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ jobI
   const { jobId } = await params;
   const { searchParams } = new URL(req.url);
 
-  // Pagination parameters
+  // pagination parameters
   const page = parseInt(searchParams.get("page") || "1");
   const limit = parseInt(searchParams.get("limit") || "10");
   const offset = (page - 1) * limit;
 
-  // Sorting parameters
+  // sorting parameters
   const sortBy = searchParams.get("sortBy") || "fit";
   const sortOrder = searchParams.get("sortOrder") || "desc";
 
-  // Filtering parameters
+  // filtering parameters
   const search = searchParams.get("search");
   const scoreFilter = searchParams.get("scoreFilter"); // 'excellent', 'good', 'fair', 'poor', 'all'
 
   try {
     const jobIdNum = Number(jobId);
 
-    // Build base query with joins
+    // build base query with joins
     let whereConditions = eq(comparisons.jobId, jobIdNum);
 
-    // Add search filter (search in candidate names)
+    // add search filter (search in candidate names)
     if (search) {
       whereConditions = and(whereConditions, ilike(resumes.candidateName, `%${search}%`))!;
     }
 
-    // Add score filter
+    // add score filter
     if (scoreFilter && scoreFilter !== "all") {
       const scoreConditions = (() => {
         switch (scoreFilter) {
@@ -59,7 +59,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ jobI
       }
     }
 
-    // Define sort clause
+    // define sort clause
     let orderByClause;
     switch (sortBy) {
       case "fit":
@@ -83,7 +83,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ jobI
         orderByClause = desc(sql`COALESCE(${comparisons.fitScore}, ${comparisons.similarity})`);
     }
 
-    // Get total count for pagination metadata
+    // get total count for pagination metadata
     const totalResult = await db
       .select({ count: count() })
       .from(comparisons)
@@ -91,7 +91,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ jobI
       .where(whereConditions);
     const total = totalResult[0]?.count || 0;
 
-    // Get unfiltered analytics for overall statistics
+    // get unfiltered analytics for overall statistics
     const unfiltered = await db
       .select({
         similarity: comparisons.similarity,
@@ -101,7 +101,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ jobI
       .innerJoin(resumes, eq(resumes.id, comparisons.resumeId))
       .where(eq(comparisons.jobId, jobIdNum));
 
-    // Calculate unfiltered analytics
+    // calculate unfiltered analytics
     const unfilteredAnalytics = {
       total: unfiltered.length,
       excellent: unfiltered.filter((c) => {
@@ -129,7 +129,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ jobI
           : 0,
     };
 
-    // Main query with pagination and joins
+    // main query with pagination and joins
     const comparisonList = await db
       .select({
         resumeId: comparisons.resumeId,
@@ -148,7 +148,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ jobI
       .limit(limit)
       .offset(offset);
 
-    // Transform to expected format
+    // transform to expected format
     const enrichedComparisons = comparisonList.map((comparison) => ({
       resumeId: comparison.resumeId,
       similarity: comparison.similarity,
@@ -160,12 +160,12 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ jobI
       createdAt: comparison.createdAt,
     }));
 
-    // Calculate pagination metadata
+    // calculate pagination metadata
     const totalPages = Math.ceil(total / limit);
     const hasNextPage = page < totalPages;
     const hasPreviousPage = page > 1;
 
-    // Calculate filtered analytics for current page/filter
+    // calculate filtered analytics for current page/filter
     const filteredAnalytics = {
       total: comparisonList.length,
       excellent: comparisonList.filter((c) => {
@@ -209,8 +209,8 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ jobI
         sortBy,
         sortOrder,
       },
-      analytics: unfilteredAnalytics, // Use unfiltered for overall stats
-      filteredAnalytics, // Optional: include filtered stats if needed
+      analytics: unfilteredAnalytics,
+      filteredAnalytics,
     });
   } catch (error) {
     console.error("Error fetching comparisons:", error);
