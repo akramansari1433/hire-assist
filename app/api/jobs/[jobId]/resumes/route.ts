@@ -6,6 +6,7 @@ import { chunk } from "@/lib/chunk";
 import { embed } from "@/lib/embeddings";
 import { upsertVectors } from "@/lib/pinecone";
 import { desc, eq, asc, and, ilike, count, inArray } from "drizzle-orm";
+import { extractTextFromPDF, extractCandidateName } from "@/lib/pdf-utils";
 
 export async function GET(req: NextRequest, { params }: { params: Promise<{ jobId: string }> }) {
   const { jobId } = await params;
@@ -189,47 +190,146 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ jobI
 
 export async function POST(req: NextRequest, { params }: { params: Promise<{ jobId: string }> }) {
   const { jobId } = await params;
-  const { candidateName, fullText } = await req.json();
-
-  if (!candidateName || !fullText) {
-    return NextResponse.json({ error: "candidateName and fullText required" }, { status: 400 });
-  }
 
   try {
-    // add resume to db
-    const [resume] = await db
-      .insert(resumes)
-      .values({ jobId: Number(jobId), candidateName, fullText })
-      .returning({ id: resumes.id });
+    const formData = await req.formData();
+    const files = formData.getAll("files") as File[];
 
-    // chunk + embed
-    const pieces = await chunk(fullText);
-
-    if (pieces.length === 0) {
-      throw new Error("Chunking failed - no pieces created");
+    if (!files || files.length === 0) {
+      return NextResponse.json({ error: "At least one PDF file is required" }, { status: 400 });
     }
 
-    const vectors = await Promise.all(
-      pieces.map(async (piece, i) => {
-        console.log(`  Embedding chunk ${i + 1}/${pieces.length}...`);
-        return await embed(piece);
-      })
-    );
+    // Validate all files before processing
+    for (const file of files) {
+      // Validate file type - only PDF
+      if (file.type !== "application/pdf") {
+        return NextResponse.json(
+          { error: `"${file.name}" is not a PDF file. Only PDF files are accepted.` },
+          { status: 400 }
+        );
+      }
 
-    // upsert to Pinecone
-    const pineconeVectors = vectors.map((v, i) => ({
-      id: `res-${resume.id}-${i}`,
-      values: v,
-      metadata: { resumeId: resume.id, jobId: Number(jobId) },
-    }));
+      // Validate file size (max 10MB)
+      if (file.size > 10 * 1024 * 1024) {
+        return NextResponse.json(
+          { error: `"${file.name}" is too large. File size must be less than 10MB.` },
+          { status: 400 }
+        );
+      }
+    }
 
-    await upsertVectors(pineconeVectors, "resumes");
+    const results = [];
+    const errors = [];
 
-    return NextResponse.json({ id: resume.id });
+    // Process files in parallel for better performance
+    const filePromises = files.map(async (file) => {
+      try {
+        // Extract text from PDF
+        const buffer = await file.arrayBuffer();
+        const fullText = await extractTextFromPDF(buffer);
+
+        if (!fullText.trim()) {
+          throw new Error(`No text could be extracted from "${file.name}"`);
+        }
+
+        // Extract candidate name using AI
+        const candidateName = await extractCandidateName(fullText);
+
+        if (!candidateName) {
+          throw new Error(`Could not identify candidate name from "${file.name}"`);
+        }
+
+        // Add resume to db
+        const [resume] = await db
+          .insert(resumes)
+          .values({ jobId: Number(jobId), candidateName, fullText })
+          .returning({ id: resumes.id });
+
+        // Chunk + embed
+        const pieces = await chunk(fullText);
+
+        if (pieces.length === 0) {
+          throw new Error(`Chunking failed for "${file.name}" - no pieces created`);
+        }
+
+        const vectors = await Promise.all(
+          pieces.map(async (piece) => {
+            return await embed(piece);
+          })
+        );
+
+        // Upsert to Pinecone
+        const pineconeVectors = vectors.map((v, i) => ({
+          id: `res-${resume.id}-${i}`,
+          values: v,
+          metadata: { resumeId: resume.id, jobId: Number(jobId) },
+        }));
+
+        await upsertVectors(pineconeVectors, "resumes");
+
+        return {
+          fileName: file.name,
+          resumeId: resume.id,
+          candidateName,
+          success: true,
+        };
+      } catch (error) {
+        console.error(`❌ Error processing ${file.name}:`, error);
+        return {
+          fileName: file.name,
+          success: false,
+          error: error instanceof Error ? error.message : String(error),
+        };
+      }
+    });
+
+    // Wait for all files to be processed
+    const processedResults = await Promise.all(filePromises);
+
+    // Separate successful and failed results
+    for (const result of processedResults) {
+      if (result.success && result.resumeId && result.candidateName) {
+        results.push({
+          fileName: result.fileName,
+          resumeId: result.resumeId,
+          candidateName: result.candidateName,
+        });
+      } else {
+        errors.push({
+          fileName: result.fileName,
+          error: result.error || "Unknown error occurred",
+        });
+      }
+    }
+
+    // Return results
+    const response: {
+      success: boolean;
+      processed: number;
+      total: number;
+      results: Array<{ fileName: string; resumeId: number; candidateName: string }>;
+      errors?: Array<{ fileName: string; error: string }>;
+      message?: string;
+    } = {
+      success: true,
+      processed: results.length,
+      total: files.length,
+      results,
+    };
+
+    if (errors.length > 0) {
+      response.errors = errors;
+      response.message = `${results.length} of ${files.length} resumes processed successfully. ${errors.length} failed.`;
+    } else {
+      response.message = `All ${files.length} resumes uploaded and processed successfully`;
+    }
+
+    return NextResponse.json(response);
   } catch (error) {
+    console.error("Bulk resume upload error:", error);
     return NextResponse.json(
       {
-        error: "Resume upload failed",
+        error: "Bulk resume upload failed",
         details: error instanceof Error ? error.message : String(error),
       },
       { status: 500 }

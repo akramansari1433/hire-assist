@@ -83,17 +83,40 @@ export default function CandidateManagement({ jobId, resumes, pagination, onData
   };
 
   // Data modification handlers
-  const onUpload = async (candidateName: string, fullText: string) => {
+  const onUpload = async (files: File[]) => {
     setState((s) => ({ ...s, uploading: true }));
     try {
-      await fetch(`/api/jobs/${jobId}/resumes`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ candidateName, fullText }),
+      const formData = new FormData();
+
+      // Append all files to FormData
+      files.forEach((file) => {
+        formData.append("files", file);
       });
+
+      const response = await fetch(`/api/jobs/${jobId}/resumes`, {
+        method: "POST",
+        body: formData,
+      });
+
+      if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.error || "Upload failed");
+      }
+
+      const result = await response.json();
+
+      // Show success/error message
+      if (result.errors && result.errors.length > 0) {
+        console.warn("Some files failed to process:", result.errors);
+        // You could show a toast notification here for partial failures
+      }
+
+      console.log(`✅ Successfully processed ${result.processed} of ${result.total} files`);
+
       onDataChange(1, pagination.itemsPerPage, filters.sort, filters.search, filters.status);
     } catch (error) {
-      console.error("Error uploading resume:", error);
+      console.error("Error uploading resumes:", error);
+      throw error; // Re-throw so the dialog can handle the error
     } finally {
       setState((s) => ({ ...s, uploading: false }));
     }
@@ -169,14 +192,16 @@ export default function CandidateManagement({ jobId, resumes, pagination, onData
               Delete Selected ({state.selected.size})
             </Button>
           )}
-          <Button
-            variant="destructive"
-            size="sm"
-            onClick={() => openBulkDeleteDialog("all")}
-            disabled={state.bulkDeleting}
-          >
-            Delete All
-          </Button>
+          {resumes.length > 0 && (
+            <Button
+              variant="destructive"
+              size="sm"
+              onClick={() => openBulkDeleteDialog("all")}
+              disabled={state.bulkDeleting}
+            >
+              Delete All
+            </Button>
+          )}
         </div>
       </CardHeader>
       <CardContent>
