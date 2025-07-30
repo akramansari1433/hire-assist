@@ -111,8 +111,6 @@ export default function CandidateManagement({ jobId, resumes, pagination, onData
         // You could show a toast notification here for partial failures
       }
 
-      console.log(`✅ Successfully processed ${result.processed} of ${result.total} files`);
-
       onDataChange(1, pagination.itemsPerPage, filters.sort, filters.search, filters.status);
     } catch (error) {
       console.error("Error uploading resumes:", error);

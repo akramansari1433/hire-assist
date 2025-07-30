@@ -27,8 +27,6 @@ export async function DELETE(req: NextRequest, { params }: { params: Promise<{ j
       .where(eq(comparisons.resumeId, resumeIdNum))
       .returning({ id: comparisons.id });
 
-    console.log(`🔗 Deleted ${deletedComparisons.length} comparisons for resume ${resumeId}`);
-
     // delete resume embeddings from Pinecone
     await deleteResumeEmbeddings(resumeIdNum);
 
@@ -41,7 +39,7 @@ export async function DELETE(req: NextRequest, { params }: { params: Promise<{ j
       deletedComparisons: deletedComparisons.length,
     });
   } catch (error) {
-    console.error(`💥 Resume deletion failed for resume ${resumeId}:`, error);
+    console.error(`Resume deletion failed for resume ${resumeId}:`, error);
     return NextResponse.json(
       {
         error: "Resume deletion failed",

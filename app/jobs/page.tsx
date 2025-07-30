@@ -80,11 +80,7 @@ export default function JobsPage() {
       });
 
       if (response.ok) {
-        const result = await response.json();
-        console.log(
-          `Job deleted: ${result.deletedJob.title}, ${result.deletedResumes} resumes, ${result.deletedComparisons} comparisons`
-        );
-        fetchJobs(); // Refresh the list
+        fetchJobs();
       } else {
         const error = await response.json();
         console.error("Delete failed:", error);

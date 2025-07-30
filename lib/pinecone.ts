@@ -23,7 +23,6 @@ export async function upsertVectors(
 export async function deleteJobEmbedding(jobId: number) {
   const ids = [`job-${jobId}`];
   await index.namespace("jobs").deleteMany(ids);
-  console.log(`🗑️ Deleted job embedding: job-${jobId}`);
 }
 
 /**
@@ -41,9 +40,6 @@ export async function deleteResumeEmbeddings(resumeId: number) {
   if (queryResponse.matches && queryResponse.matches.length > 0) {
     const idsToDelete = queryResponse.matches.map((match) => match.id);
     await index.namespace("resumes").deleteMany(idsToDelete);
-    console.log(`🗑️ Deleted ${idsToDelete.length} resume embeddings for resume ${resumeId}:`, idsToDelete);
-  } else {
-    console.log(`ℹ️ No embeddings found for resume ${resumeId}`);
   }
 }
 
@@ -71,8 +67,5 @@ export async function deleteAllJobResumeEmbeddings(jobId: number) {
   if (queryResponse.matches && queryResponse.matches.length > 0) {
     const idsToDelete = queryResponse.matches.map((match) => match.id);
     await index.namespace("resumes").deleteMany(idsToDelete);
-    console.log(`🗑️ Deleted ${idsToDelete.length} resume embeddings for job ${jobId}:`, idsToDelete);
-  } else {
-    console.log(`ℹ️ No resume embeddings found for job ${jobId}`);
   }
 }

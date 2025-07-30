@@ -23,7 +23,6 @@ export async function POST(req: NextRequest) {
     const vector = await embed(jdText);
 
     // insert into Postgres
-    console.log("💾 Storing job in database...");
     const [job] = await db
       .insert(jobs)
       .values({
@@ -31,7 +30,6 @@ export async function POST(req: NextRequest) {
         jdText,
       })
       .returning({ id: jobs.id });
-    console.log("✅ Job stored with ID:", job.id);
 
     // upsert into Pinecone
     await upsertVectors(

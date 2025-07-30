@@ -168,9 +168,6 @@ export default function MatchingPage({ params }: { params: Promise<{ jobId: stri
         throw new Error("Failed to run matching");
       }
 
-      const data = await response.json();
-      console.log("Matching completed:", data);
-
       // Refresh the comparisons list
       fetchExistingComparisons();
     } catch (error) {

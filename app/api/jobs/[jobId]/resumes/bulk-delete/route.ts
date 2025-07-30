@@ -46,8 +46,6 @@ export async function DELETE(req: NextRequest, { params }: { params: Promise<{ j
       .where(inArray(comparisons.resumeId, targetResumeIds))
       .returning({ id: comparisons.id });
 
-    console.log(`🔗 Deleted ${deletedComparisons.length} comparisons`);
-
     // delete resume embeddings from Pinecone
     if (deleteAll) {
       // if deleting all, use the optimized function that filters by jobId
@@ -70,7 +68,7 @@ export async function DELETE(req: NextRequest, { params }: { params: Promise<{ j
       totalDeleted: deletedResumes.length,
     });
   } catch (error) {
-    console.error(`💥 Bulk resume deletion failed for job ${jobId}:`, error);
+    console.error(`Bulk resume deletion failed for job ${jobId}:`, error);
     return NextResponse.json(
       {
         error: "Bulk resume deletion failed",
