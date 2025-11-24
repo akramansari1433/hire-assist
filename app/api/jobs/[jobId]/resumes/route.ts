@@ -246,7 +246,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ job
           .returning({ id: resumes.id });
 
         // Chunk + embed
-        const pieces = await chunk(fullText);
+        const pieces = chunk(fullText);
 
         if (pieces.length === 0) {
           throw new Error(`Chunking failed for "${file.name}" - no pieces created`);

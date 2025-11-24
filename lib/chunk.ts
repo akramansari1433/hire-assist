@@ -1,19 +1,17 @@
-import { AutoTokenizer } from "@xenova/transformers";
+// Character-based chunking (simpler and sufficient since embedding API handles truncation)
+// Using ~4 chars/token ratio: 450 tokens ≈ 1800 chars, 50 tokens ≈ 200 chars
+const CHUNK_SIZE = 1800; // ~450 tokens (4 chars/token average for English)
+const OVERLAP = 200; // ~50 tokens
 
-const tokenizerPromise = AutoTokenizer.from_pretrained("intfloat/e5-small-v2", { quantized: false });
+export function chunk(text: string): string[] {
+  const chunks: string[] = [];
 
-const CHUNK = 450;
-const OVERLAP = 50;
-
-export async function chunk(text: string): Promise<string[]> {
-  const tokenizer = await tokenizerPromise;
-  const ids = tokenizer.encode(text);
-  const out: string[] = [];
-
-  for (let i = 0; i < ids.length; i += CHUNK - OVERLAP) {
-    const slice = ids.slice(i, i + CHUNK);
-    out.push(tokenizer.decode(slice));
+  for (let i = 0; i < text.length; i += CHUNK_SIZE - OVERLAP) {
+    const chunk = text.slice(i, i + CHUNK_SIZE);
+    if (chunk.trim().length > 0) {
+      chunks.push(chunk);
+    }
   }
 
-  return out;
+  return chunks.length > 0 ? chunks : [text]; // Fallback to full text if no chunks created
 }
